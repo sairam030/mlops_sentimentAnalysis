@@ -1,0 +1,14 @@
+# Serving-only dependencies (slim — no training libs)
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+pydantic>=2.0
+
+# Model inference
+transformers>=4.40
+torch>=2.0
+tokenizers
+
+# Config
+python-dotenv
+pyyaml
+numpy

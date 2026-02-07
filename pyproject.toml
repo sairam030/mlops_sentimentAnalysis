@@ -1,0 +1,43 @@
+# ── Ruff — fast Python linter & formatter ──────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "B008", # function call in default arg (FastAPI depends on this)
+    "E402", # module-level import not at top (load_dotenv must run first)
+    "B017", # assert blind exception in tests (acceptable)
+    "B905", # zip strict= (Python 3.10+ pedantic)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/*" = ["I001", "UP015", "F541", "W292"]     # training scripts — style not critical
+"tests/*" = ["I001"]                              # test import ordering
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "serving"]
+
+# ── Pytest ─────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+# ── Coverage ───────────────────────────────────────────────
+[tool.coverage.run]
+source = ["serving"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50

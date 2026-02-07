@@ -1,0 +1,67 @@
+# ============================================================
+# Train — Run DVC pipeline when data or training code changes
+# ============================================================
+# Triggers on pushes that touch data, src, params, or dvc.yaml.
+# Commits updated metrics & DVC lock file back to the repo.
+# ============================================================
+
+name: Train — DVC Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "params.yaml"
+      - "dvc.yaml"
+      - "data/raw/**"
+  workflow_dispatch:       # manual trigger button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dvc-pipeline
+  cancel-in-progress: true
+
+jobs:
+  train:
+    name: Run DVC Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 120       # BERT training can be long
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history for DVC
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dvc
+
+      - name: Setup DVC
+        run: dvc pull || echo "No remote configured — using cached data"
+
+      - name: Run DVC pipeline
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: dvc repro
+
+      - name: Show metrics
+        run: dvc metrics show
+
+      - name: Commit updated metrics & lock file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dvc.lock models/*.json models/model_comparison.csv || true
+          git diff --cached --quiet || git commit -m "ci: update DVC metrics [skip ci]"
+          git push || echo "Nothing to push"

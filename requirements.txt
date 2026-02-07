@@ -13,3 +13,6 @@ pyyaml
 mlflow
 python-dotenv
 dvc
+
+
+huggingface_hub
