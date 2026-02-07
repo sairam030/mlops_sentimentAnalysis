@@ -9,9 +9,15 @@ Usage:
 """
 
 import argparse
+import glob
 import json
 import os
 import re
+import shutil
+import time
+
+from dotenv import load_dotenv
+load_dotenv()  # load .env credentials (MLFLOW_TRACKING_*)
 
 import mlflow
 import mlflow.transformers
@@ -114,11 +120,11 @@ def main():
 
     model_name = bert_params["base_model"]
     epochs = bert_params["epochs"]
-    lr = bert_params["learning_rate"]
+    lr = float(bert_params["learning_rate"])
     batch_size = bert_params["batch_size"]
     max_length = bert_params["max_length"]
-    weight_decay = bert_params["weight_decay"]
-    warmup_ratio = bert_params["warmup_ratio"]
+    weight_decay = float(bert_params["weight_decay"])
+    warmup_ratio = float(bert_params["warmup_ratio"])
 
     test_size = params["preprocess"]["test_size"]
     random_state = params["preprocess"]["random_state"]
@@ -216,8 +222,18 @@ def main():
         mlflow.log_metric("recall_macro", recall_macro)
 
         # --- Save model ---
+        print("[bert] Saving model to disk...")
         trainer.save_model(output_dir)
         tokenizer.save_pretrained(output_dir)
+        print(f"[bert] Model saved to {output_dir}")
+
+        # --- Delete checkpoints to avoid huge MLflow uploads ---
+        checkpoint_dirs = glob.glob(os.path.join(output_dir, "checkpoint-*"))
+        if checkpoint_dirs:
+            print(f"[bert] Removing {len(checkpoint_dirs)} training checkpoints to reduce upload size...")
+            for cp_dir in checkpoint_dirs:
+                shutil.rmtree(cp_dir)
+                print(f"  ✓ Removed {os.path.basename(cp_dir)}")
 
         model_info = {
             "model": "DistilBERT fine-tuned (3-class)",
@@ -234,18 +250,36 @@ def main():
             "train_samples": len(train_ds),
             "test_samples": len(test_ds),
         }
-        info_path = os.path.join(output_dir, "model_info.json")
+        info_path = os.path.join(models_dir, "distilbert_info.json")
         with open(info_path, "w") as f:
             json.dump(model_info, f, indent=2)
+        print(f"[bert] Model info saved to {info_path}")
 
-        # Log artifacts
+        # Log artifacts with progress tracking
+        print("[mlflow] Uploading artifacts to remote MLflow server...")
+
+        t0 = time.time()
+        print("[mlflow]   1/3  Uploading distilbert_info.json ...")
         mlflow.log_artifact(info_path)
+        print(f"[mlflow]   1/3  Done ({time.time() - t0:.1f}s)")
+
+        t0 = time.time()
+        print("[mlflow]   2/3  Uploading params.yaml ...")
         mlflow.log_artifact("params.yaml")
+        print(f"[mlflow]   2/3  Done ({time.time() - t0:.1f}s)")
 
-        # Log the HF model directory
+        # Calculate size of model directory before upload
+        total_size = sum(
+            os.path.getsize(os.path.join(dp, f))
+            for dp, _, filenames in os.walk(output_dir)
+            for f in filenames
+        )
+        print(f"[mlflow]   3/3  Uploading distilbert_model ({total_size / 1024 / 1024:.1f} MB) — this may take a few minutes ...")
+        t0 = time.time()
         mlflow.log_artifacts(output_dir, artifact_path="distilbert_model")
+        print(f"[mlflow]   3/3  Done ({time.time() - t0:.1f}s)")
 
-        print(f"\n[mlflow] Run logged: {mlflow.active_run().info.run_id}")
+        print(f"\n[mlflow] ✅ All artifacts uploaded. Run ID: {mlflow.active_run().info.run_id}")
 
     print("[bert] Done.")
 

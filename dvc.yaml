@@ -31,7 +31,9 @@ stages:
     outs:
       - models/svm_baseline_no_smote.joblib
       - models/svm_baseline_scaler.joblib
-      - models/svm_baseline_info.json
+    metrics:
+      - models/svm_baseline_info.json:
+          cache: false
 
   # ── Stage 2b: Preprocess WITH SMOTE (for SVM+SMOTE) ───────────
   preprocess_smote:
@@ -64,7 +66,9 @@ stages:
     outs:
       - models/svm_sentiment.joblib
       - models/svm_scaler.joblib
-      - models/svm_model_info.json
+    metrics:
+      - models/svm_model_info.json:
+          cache: false
 
   # ── Stage 2d: Fine-tune DistilBERT ────────────────────────────
   train_bert:
@@ -77,6 +81,9 @@ stages:
       - mlflow
     outs:
       - models/distilbert_sentiment/
+    metrics:
+      - models/distilbert_info.json:
+          cache: false
 
   # ── Stage 3: Evaluate all & register best model ───────────────
   evaluate:
@@ -85,15 +92,8 @@ stages:
       - src/evaluate.py
       - models/svm_baseline_info.json
       - models/svm_model_info.json
-      - models/distilbert_sentiment/model_info.json
+      - models/distilbert_info.json
     params:
       - mlflow
     outs:
       - models/model_comparison.csv
-    metrics:
-      - models/svm_baseline_info.json:
-          cache: false
-      - models/svm_model_info.json:
-          cache: false
-      - models/distilbert_sentiment/model_info.json:
-          cache: false

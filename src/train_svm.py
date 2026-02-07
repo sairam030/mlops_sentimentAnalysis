@@ -13,6 +13,9 @@ import argparse
 import json
 import os
 
+from dotenv import load_dotenv
+load_dotenv()  # load .env credentials (MLFLOW_TRACKING_*)
+
 import joblib
 import mlflow
 import mlflow.sklearn

@@ -2,7 +2,10 @@ venv/
 mlruns/
 __pycache__/
 *.pyc
+.env
 
 # DVC handles these — don't track in Git
 /data/processed/
 /models/
+
+mlartifacts/
