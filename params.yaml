@@ -37,5 +37,5 @@ train:
 # --- MLflow ---
 mlflow:
   experiment_name: sentiment-classification
-  tracking_uri: http://localhost:5000
+  tracking_uri: https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
   registered_model_name: sentiment-best-model

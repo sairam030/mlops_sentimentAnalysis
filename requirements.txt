@@ -11,4 +11,5 @@ datasets
 accelerate
 pyyaml
 mlflow
+python-dotenv
 dvc

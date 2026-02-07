@@ -1,0 +1,251 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python src/pretrain.py
+    deps:
+    - path: data/raw/YoutubeCommentsDataSet.csv
+      hash: md5
+      md5: dc4323696d2aac0cd2f9a10707b9a18a
+      size: 3488499
+    - path: src/pretrain.py
+      hash: md5
+      md5: 1e9f4ca650175f57e6a02e2c8868a890
+      size: 5676
+    params:
+      params.yaml:
+        paths:
+          raw_data: data/raw/YoutubeCommentsDataSet.csv
+          processed_dir: data/processed/
+          models_dir: models/
+        preprocess:
+          embedding_model: all-MiniLM-L6-v2
+          test_size: 0.2
+          random_state: 42
+    outs:
+    - path: data/processed/metadata.json
+      hash: md5
+      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      size: 278
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: 59c6c5b0a1e0083a6b7edbb9ade0ec96
+      size: 29584
+    - path: data/processed/test_vectors.npy
+      hash: md5
+      md5: 84147651940975060dd5da3565c62179
+      size: 11429056
+    - path: data/processed/train_labels.npy
+      hash: md5
+      md5: e2d46f5af07a7ef1d0b1f251fff5a251
+      size: 117936
+    - path: data/processed/train_vectors.npy
+      hash: md5
+      md5: b27308c0bfeffb2dfededb3aa0c18e0e
+      size: 45709632
+  train_svm_baseline:
+    cmd: python src/train_svm_noSMOTE.py
+    deps:
+    - path: data/processed/metadata.json
+      hash: md5
+      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      size: 278
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: 59c6c5b0a1e0083a6b7edbb9ade0ec96
+      size: 29584
+    - path: data/processed/test_vectors.npy
+      hash: md5
+      md5: 84147651940975060dd5da3565c62179
+      size: 11429056
+    - path: data/processed/train_labels.npy
+      hash: md5
+      md5: e2d46f5af07a7ef1d0b1f251fff5a251
+      size: 117936
+    - path: data/processed/train_vectors.npy
+      hash: md5
+      md5: b27308c0bfeffb2dfededb3aa0c18e0e
+      size: 45709632
+    - path: src/train_svm_noSMOTE.py
+      hash: md5
+      md5: 875563f21d5fafb7c05cc3ba68150012
+      size: 6239
+    params:
+      params.yaml:
+        mlflow:
+          experiment_name: sentiment-classification
+          tracking_uri: 
+            https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
+          registered_model_name: sentiment-best-model
+        train.svm:
+          kernel: rbf
+          C: 1.0
+          gamma: scale
+          random_state: 42
+    outs:
+    - path: models/svm_baseline_info.json
+      hash: md5
+      md5: 17312c732e87cc7291da72742a63f94f
+      size: 565
+    - path: models/svm_baseline_no_smote.joblib
+      hash: md5
+      md5: 80e9bf348cf73c48bcb22086aed89d4c
+      size: 24788915
+    - path: models/svm_baseline_scaler.joblib
+      hash: md5
+      md5: 64438904e51e8a7c6d7b28ba4d6768c6
+      size: 9895
+  preprocess_smote:
+    cmd: python src/pretrain.py --smote
+    deps:
+    - path: data/raw/YoutubeCommentsDataSet.csv
+      hash: md5
+      md5: dc4323696d2aac0cd2f9a10707b9a18a
+      size: 3488499
+    - path: src/pretrain.py
+      hash: md5
+      md5: 1e9f4ca650175f57e6a02e2c8868a890
+      size: 5676
+    params:
+      params.yaml:
+        paths:
+          raw_data: data/raw/YoutubeCommentsDataSet.csv
+          processed_dir: data/processed/
+          models_dir: models/
+        preprocess:
+          embedding_model: all-MiniLM-L6-v2
+          test_size: 0.2
+          random_state: 42
+        train.smote:
+          random_state: 42
+    outs:
+    - path: data/processed/smote/metadata.json
+      hash: md5
+      md5: f542ac558befd58e44571655a2150517
+      size: 277
+    - path: data/processed/smote/train_labels.npy
+      hash: md5
+      md5: 15c71552b382e27974dd1040a2b9c8aa
+      size: 219632
+    - path: data/processed/smote/train_vectors.npy
+      hash: md5
+      md5: d01a2ca24f80c97ca9ddcce65d7e2536
+      size: 85167680
+  train_svm_smote:
+    cmd: python src/train_svm.py
+    deps:
+    - path: data/processed/metadata.json
+      hash: md5
+      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      size: 278
+    - path: data/processed/smote/train_labels.npy
+      hash: md5
+      md5: 15c71552b382e27974dd1040a2b9c8aa
+      size: 219632
+    - path: data/processed/smote/train_vectors.npy
+      hash: md5
+      md5: d01a2ca24f80c97ca9ddcce65d7e2536
+      size: 85167680
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: 59c6c5b0a1e0083a6b7edbb9ade0ec96
+      size: 29584
+    - path: data/processed/test_vectors.npy
+      hash: md5
+      md5: 84147651940975060dd5da3565c62179
+      size: 11429056
+    - path: src/train_svm.py
+      hash: md5
+      md5: 2cfa0ea30c56e193b99ffa8ae2d27be4
+      size: 6022
+    params:
+      params.yaml:
+        mlflow:
+          experiment_name: sentiment-classification
+          tracking_uri: 
+            https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
+          registered_model_name: sentiment-best-model
+        train.svm:
+          kernel: rbf
+          C: 1.0
+          gamma: scale
+          random_state: 42
+    outs:
+    - path: models/svm_model_info.json
+      hash: md5
+      md5: 5c772bfd2b6075cc4b434136b9ec6c92
+      size: 547
+    - path: models/svm_scaler.joblib
+      hash: md5
+      md5: a3256eac0d59d93e2883fb53bb0e40e9
+      size: 9895
+    - path: models/svm_sentiment.joblib
+      hash: md5
+      md5: e2e07ce1fdafb0f4a669b4f1f5bf8f6f
+      size: 38780755
+  train_bert:
+    cmd: python src/train_bert.py
+    deps:
+    - path: data/raw/YoutubeCommentsDataSet.csv
+      hash: md5
+      md5: dc4323696d2aac0cd2f9a10707b9a18a
+      size: 3488499
+    - path: src/train_bert.py
+      hash: md5
+      md5: d53bf0c2b026714961543c17f0109138
+      size: 10466
+    params:
+      params.yaml:
+        mlflow:
+          experiment_name: sentiment-classification
+          tracking_uri: 
+            https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
+          registered_model_name: sentiment-best-model
+        train.bert:
+          base_model: distilbert-base-uncased
+          epochs: 3
+          learning_rate: 2e-05
+          batch_size: 16
+          max_length: 128
+          weight_decay: 0.01
+          warmup_ratio: 0.1
+    outs:
+    - path: models/distilbert_info.json
+      hash: md5
+      md5: 98b40820c8a18b73694ed4377ca51cff
+      size: 457
+    - path: models/distilbert_sentiment/
+      hash: md5
+      md5: 098e86fcb78f53797df2c2695b54be00.dir
+      size: 268553655
+      nfiles: 5
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+    - path: models/distilbert_info.json
+      hash: md5
+      md5: 98b40820c8a18b73694ed4377ca51cff
+      size: 457
+    - path: models/svm_baseline_info.json
+      hash: md5
+      md5: 17312c732e87cc7291da72742a63f94f
+      size: 565
+    - path: models/svm_model_info.json
+      hash: md5
+      md5: 5c772bfd2b6075cc4b434136b9ec6c92
+      size: 547
+    - path: src/evaluate.py
+      hash: md5
+      md5: fa38a4f182295dc0c08ab6b102c649f6
+      size: 12507
+    params:
+      params.yaml:
+        mlflow:
+          experiment_name: sentiment-classification
+          tracking_uri: 
+            https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
+          registered_model_name: sentiment-best-model
+    outs:
+    - path: models/model_comparison.csv
+      hash: md5
+      md5: 24032d0dee86ee2ccecdb4d9becc6269
+      size: 131

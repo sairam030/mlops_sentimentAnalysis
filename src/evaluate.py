@@ -14,12 +14,16 @@ import argparse
 import json
 import os
 
+from dotenv import load_dotenv
+load_dotenv()  # load .env credentials (MLFLOW_TRACKING_*)
+
 import joblib
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
+import mlflow.transformers
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -129,7 +133,7 @@ MODEL_REGISTRY = {
         "type": "sklearn",
     },
     "DistilBERT": {
-        "info_file": "distilbert_sentiment/model_info.json",
+        "info_file": "distilbert_info.json",
         "model_dir": "distilbert_sentiment/",
         "type": "transformers",
     },
@@ -220,16 +224,34 @@ def compare_and_register(models_dir, mlflow_cfg):
             mlflow.log_artifact(scaler_path, artifact_path="best_model")
 
         elif cfg["type"] == "transformers":
-            model_dir = os.path.join(models_dir, cfg["model_dir"])
-            # Log the full HuggingFace model directory
-            mlflow.log_artifacts(model_dir, artifact_path="best_model")
-            # Register via pyfunc for consistent interface
-            mlflow.pyfunc.log_model(
-                artifact_path="best_model_registered",
-                python_model=None,
-                artifacts={"model_dir": model_dir},
-                registered_model_name=registered_model_name,
+            from transformers import (
+                DistilBertForSequenceClassification,
+                DistilBertTokenizerFast,
+                pipeline,
             )
+
+            model_dir = os.path.join(models_dir, cfg["model_dir"])
+            print(f"[evaluate] Loading DistilBERT from {model_dir}...")
+            hf_model = DistilBertForSequenceClassification.from_pretrained(model_dir)
+            hf_tokenizer = DistilBertTokenizerFast.from_pretrained(model_dir)
+            hf_pipeline = pipeline(
+                "text-classification", model=hf_model, tokenizer=hf_tokenizer
+            )
+
+            print(f"[evaluate] Logging DistilBERT to MLflow Model Registry...")
+            mlflow.transformers.log_model(
+                transformers_model=hf_pipeline,
+                artifact_path="best_model",
+                registered_model_name=registered_model_name,
+                pip_requirements=[
+                    f"transformers=={__import__('transformers').__version__}",
+                    f"torch=={__import__('torch').__version__}",
+                    "tokenizers",
+                ],
+            )
+
+        else:
+            print(f"[evaluate] Unknown model type: {cfg['type']}. Skipping registration.")
 
         # Log comparison table
         comparison_path = os.path.join(models_dir, "model_comparison.csv")
