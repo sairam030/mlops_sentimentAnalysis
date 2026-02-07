@@ -1,0 +1,99 @@
+stages:
+  # ── Stage 1: Preprocess WITHOUT SMOTE ──────────────────────────
+  preprocess:
+    cmd: python src/pretrain.py
+    deps:
+      - src/pretrain.py
+      - data/raw/YoutubeCommentsDataSet.csv
+    params:
+      - paths
+      - preprocess
+    outs:
+      - data/processed/train_vectors.npy
+      - data/processed/train_labels.npy
+      - data/processed/test_vectors.npy
+      - data/processed/test_labels.npy
+      - data/processed/metadata.json
+
+  # ── Stage 2a: Train SVM Baseline (No SMOTE) ───────────────────
+  train_svm_baseline:
+    cmd: python src/train_svm_noSMOTE.py
+    deps:
+      - src/train_svm_noSMOTE.py
+      - data/processed/train_vectors.npy
+      - data/processed/train_labels.npy
+      - data/processed/test_vectors.npy
+      - data/processed/test_labels.npy
+      - data/processed/metadata.json
+    params:
+      - train.svm
+      - mlflow
+    outs:
+      - models/svm_baseline_no_smote.joblib
+      - models/svm_baseline_scaler.joblib
+      - models/svm_baseline_info.json
+
+  # ── Stage 2b: Preprocess WITH SMOTE (for SVM+SMOTE) ───────────
+  preprocess_smote:
+    cmd: python src/pretrain.py --smote
+    deps:
+      - src/pretrain.py
+      - data/raw/YoutubeCommentsDataSet.csv
+    params:
+      - paths
+      - preprocess
+      - train.smote
+    outs:
+      - data/processed/smote/train_vectors.npy
+      - data/processed/smote/train_labels.npy
+      - data/processed/smote/metadata.json
+
+  # ── Stage 2c: Train SVM + SMOTE ───────────────────────────────
+  train_svm_smote:
+    cmd: python src/train_svm.py
+    deps:
+      - src/train_svm.py
+      - data/processed/smote/train_vectors.npy
+      - data/processed/smote/train_labels.npy
+      - data/processed/test_vectors.npy
+      - data/processed/test_labels.npy
+      - data/processed/metadata.json
+    params:
+      - train.svm
+      - mlflow
+    outs:
+      - models/svm_sentiment.joblib
+      - models/svm_scaler.joblib
+      - models/svm_model_info.json
+
+  # ── Stage 2d: Fine-tune DistilBERT ────────────────────────────
+  train_bert:
+    cmd: python src/train_bert.py
+    deps:
+      - src/train_bert.py
+      - data/raw/YoutubeCommentsDataSet.csv
+    params:
+      - train.bert
+      - mlflow
+    outs:
+      - models/distilbert_sentiment/
+
+  # ── Stage 3: Evaluate all & register best model ───────────────
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+      - src/evaluate.py
+      - models/svm_baseline_info.json
+      - models/svm_model_info.json
+      - models/distilbert_sentiment/model_info.json
+    params:
+      - mlflow
+    outs:
+      - models/model_comparison.csv
+    metrics:
+      - models/svm_baseline_info.json:
+          cache: false
+      - models/svm_model_info.json:
+          cache: false
+      - models/distilbert_sentiment/model_info.json:
+          cache: false
