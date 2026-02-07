@@ -1,0 +1,14 @@
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+imbalanced-learn
+sentence-transformers
+vaderSentiment
+transformers
+datasets
+accelerate
+pyyaml
+mlflow
+dvc

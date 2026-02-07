@@ -1,0 +1,41 @@
+## ========================
+## Sentiment MLOps Pipeline
+## ========================
+## Single source of truth for all pipeline parameters.
+## Used by: pretrain.py, train_svm_noSMOTE.py, train_svm.py, evaluate.py
+
+# --- Paths ---
+paths:
+  raw_data: data/raw/YoutubeCommentsDataSet.csv
+  processed_dir: data/processed/
+  models_dir: models/
+
+# --- Preprocessing ---
+preprocess:
+  embedding_model: all-MiniLM-L6-v2
+  test_size: 0.2
+  random_state: 42
+
+# --- Training ---
+train:
+  svm:
+    kernel: rbf
+    C: 1.0
+    gamma: scale
+    random_state: 42
+  smote:
+    random_state: 42
+  bert:
+    base_model: distilbert-base-uncased
+    epochs: 3
+    learning_rate: 2e-5
+    batch_size: 16
+    max_length: 128
+    weight_decay: 0.01
+    warmup_ratio: 0.1
+
+# --- MLflow ---
+mlflow:
+  experiment_name: sentiment-classification
+  tracking_uri: http://localhost:5000
+  registered_model_name: sentiment-best-model
