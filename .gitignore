@@ -3,6 +3,8 @@ mlruns/
 __pycache__/
 *.pyc
 .env
+serving/.env.staging
+serving/.env.production
 
 # DVC handles these — don't track in Git
 /data/processed/
