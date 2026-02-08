@@ -13,6 +13,7 @@ import os
 import shutil
 import tarfile
 from abc import ABC, abstractmethod
+from typing import Any
 
 from serving.config import settings
 from serving.logger import get_logger
@@ -57,17 +58,17 @@ class DistilBERTPredictor(BasePredictor):
         logger.info("DistilBERT loaded successfully")
 
     def predict(self, texts: list[str]) -> list[dict]:
-        results = []
-        outputs = self._pipeline(texts, batch_size=32)
+        results: list[dict[str, Any]] = []
+        outputs: list[list[dict[str, Any]]] = self._pipeline(texts, batch_size=32)  # type: ignore[assignment]
         for text, preds in zip(texts, outputs):
             # preds is a list of {label, score} sorted by score desc
-            best = max(preds, key=lambda x: x["score"])
+            best: dict[str, Any] = max(preds, key=lambda x: x["score"])  # pyright: ignore[reportArgumentType]
             results.append(
                 {
                     "text": text,
                     "prediction": best["label"],
-                    "confidence": round(best["score"], 4),
-                    "all_scores": {p["label"]: round(p["score"], 4) for p in preds},
+                    "confidence": round(float(best["score"]), 4),
+                    "all_scores": {p["label"]: round(float(p["score"]), 4) for p in preds},  # pyright: ignore[reportArgumentType]
                 }
             )
         return results
@@ -170,12 +171,13 @@ class ModelLoader:
         return self._predictor is not None
 
     def status(self) -> dict:
+        predictor = self._predictor
         return {
             "loaded": self.is_loaded,
             "model_stage": settings.model_stage,
             "model_version": self._model_version,
             "source": self._source,
-            "model_info": self._predictor.model_info() if self.is_loaded else None,
+            "model_info": predictor.model_info() if predictor is not None else None,
         }
 
     def load(self) -> None:
@@ -244,7 +246,7 @@ class ModelLoader:
         os.environ["MLFLOW_TRACKING_PASSWORD"] = settings.mlflow_tracking_password
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
 
-        client = mlflow.tracking.MlflowClient()
+        client = mlflow.tracking.MlflowClient()  # pyright: ignore[reportPrivateImportUsage]
         model_name = settings.model_name
         alias = settings.model_stage
 
@@ -266,7 +268,7 @@ class ModelLoader:
         model_uri = f"models:/{model_name}/{version}"
 
         logger.info(f"Downloading model from {model_uri}")
-        local_dir = mlflow.artifacts.download_artifacts(artifact_uri=model_uri)
+        local_dir = mlflow.artifacts.download_artifacts(artifact_uri=model_uri)  # pyright: ignore[reportPrivateImportUsage]
 
         self._load_from_dir(local_dir)
         self._source = f"mlflow://{model_name}/v{version}"

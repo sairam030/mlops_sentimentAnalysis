@@ -1,0 +1,182 @@
+# ============================================================
+# CI/CD — Single pipeline: Lint → Test → Deploy
+# ============================================================
+# Push/PR  →  Lint  →  Test  →  Deploy (main only)
+#
+# Fast feedback loop. Deploy only runs on main after tests pass.
+# Training is separate (manual) because it takes 1-2 hours.
+# ============================================================
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:          # manual trigger (useful for deploy-only)
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Stage 1: Lint & Format ────────────────────────────────
+  lint:
+    name: 🔍 Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install lint tools
+        run: pip install ruff
+
+      - name: Ruff lint
+        run: ruff check src/ serving/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check src/ serving/ tests/
+
+  # ── Stage 2: Test ─────────────────────────────────────────
+  test:
+    name: 🧪 Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r serving/requirements.txt
+          pip install pytest pytest-cov httpx
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --cov=serving --cov-report=term-missing
+
+  # ── Stage 3: Type Check (non-blocking) ────────────────────
+  type-check:
+    name: 🔎 Type Check
+    runs-on: ubuntu-latest
+    needs: lint
+    continue-on-error: true       # informational, won't block deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r serving/requirements.txt
+          pip install pyright
+
+      - name: Pyright
+        run: pyright serving/ --pythonversion 3.12
+
+  # ── Stage 4: Deploy to HF Spaces (main only) ─────────────
+  deploy:
+    name: 🚀 Deploy to HF Spaces
+    runs-on: ubuntu-latest
+    needs: test                    # only after tests pass
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    concurrency:
+      group: hf-deploy
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install tools
+        run: pip install dvc huggingface_hub
+
+      - name: Configure DVC remote
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          dvc remote modify dagshub --local auth basic
+          dvc remote modify dagshub --local user sairam030
+          dvc remote modify dagshub --local password "$DAGSHUB_TOKEN"
+
+      - name: Pull model files (DVC)
+        run: dvc pull models/distilbert_sentiment/ models/distilbert_info.json
+
+      - name: Verify model files
+        run: |
+          echo "Checking required model files..."
+          for f in config.json model.safetensors tokenizer.json tokenizer_config.json; do
+            test -f "models/distilbert_sentiment/$f" || { echo "❌ $f missing"; exit 1; }
+          done
+          echo "✅ All model files present"
+          ls -lh models/distilbert_sentiment/
+
+      - name: Push to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -e
+
+          HF_USER="sairam030"
+          SPACE_NAME="sentiment-api"
+          SPACE_REPO="${HF_USER}/${SPACE_NAME}"
+          DEPLOY_DIR="/tmp/hf_deploy"
+
+          # Clone Space repo
+          git clone "https://${HF_USER}:${HF_TOKEN}@huggingface.co/spaces/${SPACE_REPO}" "${DEPLOY_DIR}"
+          cd "${DEPLOY_DIR}"
+          git lfs install
+
+          # Clean old files (keep .git)
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+          # Copy HF Space config
+          cp "$GITHUB_WORKSPACE/hf_space/Dockerfile" .
+          cp "$GITHUB_WORKSPACE/hf_space/README.md" .
+          cp "$GITHUB_WORKSPACE/hf_space/requirements.txt" .
+
+          # Copy serving code (no secrets)
+          cp -r "$GITHUB_WORKSPACE/serving" .
+          rm -f serving/.env.* serving/.env
+
+          # Copy model
+          mkdir -p model
+          cp "$GITHUB_WORKSPACE/models/distilbert_sentiment/config.json" model/
+          cp "$GITHUB_WORKSPACE/models/distilbert_sentiment/model.safetensors" model/
+          cp "$GITHUB_WORKSPACE/models/distilbert_sentiment/tokenizer.json" model/
+          cp "$GITHUB_WORKSPACE/models/distilbert_sentiment/tokenizer_config.json" model/
+          [ -f "$GITHUB_WORKSPACE/models/distilbert_info.json" ] && \
+            cp "$GITHUB_WORKSPACE/models/distilbert_info.json" model/
+
+          # LFS track large files
+          git lfs track "*.safetensors" "*.bin" "*.pt"
+
+          # Commit & push
+          git add -A
+          COMMIT_SHA=$(echo "$GITHUB_SHA" | head -c 8)
+          git diff --cached --quiet || git commit -m "deploy: ${COMMIT_SHA} — auto from GitHub Actions"
+          git push origin main
+
+          echo ""
+          echo "✅ Live at: https://${HF_USER}-${SPACE_NAME}.hf.space"
