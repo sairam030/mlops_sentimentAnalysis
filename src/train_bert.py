@@ -17,6 +17,7 @@ import shutil
 import time
 
 from dotenv import load_dotenv
+
 load_dotenv()  # load .env credentials (MLFLOW_TRACKING_*)
 
 import mlflow
@@ -65,9 +66,7 @@ def load_and_prepare(raw_path, test_size, val_ratio, random_state):
     df["label"] = df["Sentiment"].map(label_map)
 
     # 80/10/10 split
-    train_df, temp_df = train_test_split(
-        df, test_size=test_size, random_state=random_state, stratify=df["label"]
-    )
+    train_df, temp_df = train_test_split(df, test_size=test_size, random_state=random_state, stratify=df["label"])
     val_df, test_df = train_test_split(
         temp_df, test_size=val_ratio, random_state=random_state, stratify=temp_df["label"]
     )
@@ -78,6 +77,7 @@ def load_and_prepare(raw_path, test_size, val_ratio, random_state):
 
 def tokenize_datasets(train_df, val_df, test_df, tokenizer, max_length):
     """Convert DataFrames to tokenized HuggingFace Datasets."""
+
     def make_ds(dataframe):
         ds = Dataset.from_pandas(dataframe[["Comment", "label"]].reset_index(drop=True))
         ds = ds.rename_column("Comment", "text")
@@ -210,10 +210,10 @@ def main():
         precision_macro = precision_score(y_true, y_pred, average="macro")
         recall_macro = recall_score(y_true, y_pred, average="macro")
 
-        print(f"\n{'='*50}")
-        print(f"  TEST ACCURACY (DistilBERT): {accuracy:.4f} ({accuracy*100:.1f}%)")
+        print(f"\n{'=' * 50}")
+        print(f"  TEST ACCURACY (DistilBERT): {accuracy:.4f} ({accuracy * 100:.1f}%)")
         print(f"  F1 Macro: {f1_macro:.4f}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
         mlflow.log_metric("accuracy", accuracy)
         mlflow.log_metric("f1_macro", f1_macro)
@@ -270,11 +270,11 @@ def main():
 
         # Calculate size of model directory before upload
         total_size = sum(
-            os.path.getsize(os.path.join(dp, f))
-            for dp, _, filenames in os.walk(output_dir)
-            for f in filenames
+            os.path.getsize(os.path.join(dp, f)) for dp, _, filenames in os.walk(output_dir) for f in filenames
         )
-        print(f"[mlflow]   3/3  Uploading distilbert_model ({total_size / 1024 / 1024:.1f} MB) — this may take a few minutes ...")
+        print(
+            f"[mlflow]   3/3  Uploading distilbert_model ({total_size / 1024 / 1024:.1f} MB) — this may take a few minutes ..."
+        )
         t0 = time.time()
         mlflow.log_artifacts(output_dir, artifact_path="distilbert_model")
         print(f"[mlflow]   3/3  Done ({time.time() - t0:.1f}s)")

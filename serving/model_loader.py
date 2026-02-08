@@ -51,9 +51,7 @@ class DistilBERTPredictor(BasePredictor):
         logger.info(f"Loading DistilBERT from {model_dir}")
         model = DistilBertForSequenceClassification.from_pretrained(model_dir)
         tokenizer = DistilBertTokenizerFast.from_pretrained(model_dir)
-        self._pipeline = pipeline(
-            "text-classification", model=model, tokenizer=tokenizer, top_k=None
-        )
+        self._pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer, top_k=None)
         self._info = info
         self._label_map = info.get("label_map", {})
         logger.info("DistilBERT loaded successfully")
@@ -64,12 +62,14 @@ class DistilBERTPredictor(BasePredictor):
         for text, preds in zip(texts, outputs):
             # preds is a list of {label, score} sorted by score desc
             best = max(preds, key=lambda x: x["score"])
-            results.append({
-                "text": text,
-                "prediction": best["label"],
-                "confidence": round(best["score"], 4),
-                "all_scores": {p["label"]: round(p["score"], 4) for p in preds},
-            })
+            results.append(
+                {
+                    "text": text,
+                    "prediction": best["label"],
+                    "confidence": round(best["score"], 4),
+                    "all_scores": {p["label"]: round(p["score"], 4) for p in preds},
+                }
+            )
         return results
 
     def model_info(self) -> dict:
@@ -127,15 +127,16 @@ class SVMPredictor(BasePredictor):
             pred_label = self._inv_label_map[predictions[i]]
             confidence = float(probabilities[i].max())
             all_scores = {
-                self._inv_label_map[j]: round(float(probabilities[i][j]), 4)
-                for j in range(len(probabilities[i]))
+                self._inv_label_map[j]: round(float(probabilities[i][j]), 4) for j in range(len(probabilities[i]))
             }
-            results.append({
-                "text": text,
-                "prediction": pred_label,
-                "confidence": round(confidence, 4),
-                "all_scores": all_scores,
-            })
+            results.append(
+                {
+                    "text": text,
+                    "prediction": pred_label,
+                    "confidence": round(confidence, 4),
+                    "all_scores": all_scores,
+                }
+            )
         return results
 
     def model_info(self) -> dict:
@@ -206,8 +207,7 @@ class ModelLoader:
         except Exception as e:
             logger.error(f"MLflow direct load also failed: {e}")
             raise RuntimeError(
-                f"Could not load model for stage '{settings.model_stage}' "
-                f"from S3 or MLflow. Check configuration."
+                f"Could not load model for stage '{settings.model_stage}' from S3 or MLflow. Check configuration."
             ) from e
 
     def _load_from_s3(self) -> None:
@@ -277,11 +277,9 @@ class ModelLoader:
         info = {}
 
         # Look for info JSON
-        for fname in ["distilbert_info.json", "svm_model_info.json",
-                       "svm_baseline_info.json", "model_info.json"]:
+        for fname in ["distilbert_info.json", "svm_model_info.json", "svm_baseline_info.json", "model_info.json"]:
             candidate = os.path.join(model_dir, fname)
             if os.path.exists(candidate):
-
                 with open(candidate) as f:
                     info = json.load(f)
                 break
@@ -305,10 +303,7 @@ class ModelLoader:
                     if os.path.exists(os.path.join(subpath, "config.json")):
                         self._predictor = DistilBERTPredictor(subpath, info)
                         return
-            raise RuntimeError(
-                f"Cannot detect model type in {model_dir}. "
-                f"Files: {os.listdir(model_dir)}"
-            )
+            raise RuntimeError(f"Cannot detect model type in {model_dir}. Files: {os.listdir(model_dir)}")
 
         logger.info(f"Model loaded: {self._predictor.model_info()}")
 

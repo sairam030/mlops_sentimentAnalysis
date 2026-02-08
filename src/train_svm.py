@@ -14,6 +14,7 @@ import json
 import os
 
 from dotenv import load_dotenv
+
 load_dotenv()  # load .env credentials (MLFLOW_TRACKING_*)
 
 import joblib
@@ -88,9 +89,9 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, metadata, params):
     recall_macro = recall_score(y_test, y_pred, average="macro")
 
     report = classification_report(y_test, y_pred, target_names=target_names)
-    print(f"\n{'='*50}")
-    print(f"  TEST ACCURACY (With SMOTE): {accuracy:.4f} ({accuracy*100:.1f}%)")
-    print(f"{'='*50}")
+    print(f"\n{'=' * 50}")
+    print(f"  TEST ACCURACY (With SMOTE): {accuracy:.4f} ({accuracy * 100:.1f}%)")
+    print(f"{'=' * 50}")
     print(report)
 
     # Save artifacts
