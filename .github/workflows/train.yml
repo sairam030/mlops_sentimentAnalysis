@@ -1,21 +1,16 @@
 # ============================================================
-# Train — Run DVC pipeline when data or training code changes
+# Train — Run the full DVC pipeline (manual trigger only)
 # ============================================================
-# Triggers on pushes that touch data, src, params, or dvc.yaml.
-# Commits updated metrics & DVC lock file back to the repo.
+# This is intentionally manual because training takes 1-2 hours.
+# Click "Run workflow" in GitHub Actions when you want to retrain.
+#
+# After training completes, push to main to trigger CI/CD → deploy.
 # ============================================================
 
 name: Train — DVC Pipeline
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "params.yaml"
-      - "dvc.yaml"
-      - "data/raw/**"
-  workflow_dispatch:       # manual trigger button
+  workflow_dispatch:          # manual trigger only
 
 permissions:
   contents: write
@@ -26,14 +21,14 @@ concurrency:
 
 jobs:
   train:
-    name: Run DVC Pipeline
+    name: 🏋️ Run DVC Pipeline
     runs-on: ubuntu-latest
-    timeout-minutes: 120       # BERT training can be long
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0       # full history for DVC
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -46,8 +41,16 @@ jobs:
           pip install -r requirements.txt
           pip install dvc
 
-      - name: Setup DVC
-        run: dvc pull || echo "No remote configured — using cached data"
+      - name: Configure DVC remote
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          dvc remote modify dagshub --local auth basic
+          dvc remote modify dagshub --local user sairam030
+          dvc remote modify dagshub --local password "$DAGSHUB_TOKEN"
+
+      - name: Pull DVC data
+        run: dvc pull
 
       - name: Run DVC pipeline
         env:
