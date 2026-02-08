@@ -69,11 +69,13 @@ class SentimentPredictor:
         for i, text in enumerate(texts):
             pred_label = self.inv_label_map[predictions[i]]
             confidence = probabilities[i].max()
-            results.append({
-                "text": text,
-                "prediction": pred_label,
-                "confidence": f"{confidence:.1%}",
-            })
+            results.append(
+                {
+                    "text": text,
+                    "prediction": pred_label,
+                    "confidence": f"{confidence:.1%}",
+                }
+            )
         return results
 
 
@@ -106,9 +108,9 @@ def main():
     predictor = SentimentPredictor(model_path, scaler_path, metadata_path, embedding_model)
     results = predictor.predict(args.texts)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  PREDICTIONS ({args.model})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for r in results:
         print(f"  [{r['confidence']:>5s}] {r['prediction']:>8s}  │  {r['text'][:70]}")
     print()

@@ -31,12 +31,15 @@ def fake_distilbert_dir():
         with open(os.path.join(tmpdir, "tokenizer_config.json"), "w") as f:
             json.dump({}, f)
         with open(os.path.join(tmpdir, "distilbert_info.json"), "w") as f:
-            json.dump({
-                "model_type": "distilbert",
-                "base_model": "distilbert-base-uncased",
-                "accuracy": 0.855,
-                "f1_macro": 0.808,
-                "num_labels": 3,
-                "label_map": {"negative": 0, "neutral": 1, "positive": 2},
-            }, f)
+            json.dump(
+                {
+                    "model_type": "distilbert",
+                    "base_model": "distilbert-base-uncased",
+                    "accuracy": 0.855,
+                    "f1_macro": 0.808,
+                    "num_labels": 3,
+                    "label_map": {"negative": 0, "neutral": 1, "positive": 2},
+                },
+                f,
+            )
         yield tmpdir

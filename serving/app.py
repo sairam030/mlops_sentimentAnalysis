@@ -223,8 +223,7 @@ async def predict(request: PredictRequest):
         metrics.total_latency_ms += latency_ms
 
         logger.info(
-            f"Predicted {len(predictions)} texts in {latency_ms:.1f}ms "
-            f"(avg {latency_ms / len(predictions):.1f}ms/text)"
+            f"Predicted {len(predictions)} texts in {latency_ms:.1f}ms (avg {latency_ms / len(predictions):.1f}ms/text)"
         )
 
         return PredictResponse(

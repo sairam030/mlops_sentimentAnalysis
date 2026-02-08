@@ -78,7 +78,12 @@ def test_predict_single(client, mock_model_loader):
 def test_predict_multiple(client, mock_model_loader):
     texts = ["Good video", "Bad video", "Okay video"]
     mock_model_loader.predictor.predict.return_value = [
-        {"text": t, "prediction": "positive", "confidence": 0.9, "all_scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}}
+        {
+            "text": t,
+            "prediction": "positive",
+            "confidence": 0.9,
+            "all_scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05},
+        }
         for t in texts
     ]
     r = client.post("/predict", json={"texts": texts})

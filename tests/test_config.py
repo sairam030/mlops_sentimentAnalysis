@@ -3,7 +3,6 @@ test_config.py — Test serving configuration.
 """
 
 
-
 def test_settings_defaults(monkeypatch):
     """Settings should pick up defaults when env vars are unset."""
     monkeypatch.delenv("MODEL_STAGE", raising=False)

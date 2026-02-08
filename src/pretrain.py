@@ -86,6 +86,7 @@ def split_and_save(X, y, label_map, output_dir, test_size, random_state, use_smo
 
     if use_smote:
         from imblearn.over_sampling import SMOTE
+
         print("[pretrain] Applying SMOTE to balance training data...")
         smote = SMOTE(random_state=smote_seed)
         X_train, y_train = smote.fit_resample(X_train, y_train)
@@ -142,7 +143,10 @@ def main():
     y = df["label"].values
 
     metadata = split_and_save(
-        X, y, label_map, output_dir,
+        X,
+        y,
+        label_map,
+        output_dir,
         test_size=test_size,
         random_state=random_state,
         use_smote=args.smote,

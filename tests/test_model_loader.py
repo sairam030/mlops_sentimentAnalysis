@@ -58,6 +58,7 @@ def test_load_from_local_path_missing(monkeypatch):
     # Re-create settings so they pick up the new env vars
     from serving.config import Settings
     import serving.model_loader as ml_mod
+
     ml_mod.settings = Settings()
 
     loader = ModelLoader()
