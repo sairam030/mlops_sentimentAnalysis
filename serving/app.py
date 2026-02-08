@@ -228,7 +228,7 @@ async def predict(request: PredictRequest):
         )
 
         return PredictResponse(
-            predictions=predictions,
+            predictions=[PredictionItem(**p) for p in predictions],
             model_stage=settings.model_stage,
             latency_ms=round(latency_ms, 2),
         )

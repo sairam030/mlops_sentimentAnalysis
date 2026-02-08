@@ -16,7 +16,6 @@ import joblib
 import numpy as np
 import yaml
 from sentence_transformers import SentenceTransformer
-from sklearn.preprocessing import StandardScaler
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 
@@ -95,8 +94,7 @@ def main():
     processed_dir = params["paths"]["processed_dir"]
     embedding_model = params["preprocess"]["embedding_model"]
 
-    with open(os.path.join(processed_dir, "metadata.json")) as f:
-        metadata_path = os.path.join(processed_dir, "metadata.json")
+    metadata_path = os.path.join(processed_dir, "metadata.json")
 
     if args.model == "svm_baseline":
         model_path = os.path.join(models_dir, "svm_baseline_no_smote.joblib")
