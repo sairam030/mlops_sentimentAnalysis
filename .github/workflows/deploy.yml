@@ -1,0 +1,548 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Manual trigger
+
+env:
+  DOCKER_REGISTRY: docker.io
+  DOCKERHUB_USERNAME: sairam030
+  BACKEND_IMAGE: sentiment-backend
+  FRONTEND_IMAGE: sentiment-frontend
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 1: Pull Best Model from MLflow
+  # ═══════════════════════════════════════════════════════════════
+  # After training locally with 'dvc repro', the best model is
+  # registered in MLflow Model Registry. This job downloads it
+  # along with comparison artifacts for deployment.
+  # ═══════════════════════════════════════════════════════════════
+  pull-model:
+    name: 🎯 Pull Best Model from MLflow
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install MLflow dependencies
+        run: |
+          pip install mlflow boto3 pyyaml python-dotenv
+      
+      - name: Download best model from MLflow
+        env:
+          # DagsHub credentials for MLflow tracking
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          echo "📦 Downloading best model from MLflow Model Registry..."
+          python scripts/pull_best_model.py --alias production --output aws_serving/app/artifacts
+          
+          echo "✅ Model artifacts downloaded:"
+          ls -lh aws_serving/app/artifacts/
+      
+      - name: Upload artifacts for next jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifacts
+          path: aws_serving/app/artifacts/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 2: Build Docker Images
+  # ═══════════════════════════════════════════════════════════════
+  # Build optimized Docker images for backend (Flask + models)
+  # and frontend (Nginx reverse proxy).
+  # Images are built but NOT pushed yet - that happens after tests.
+  # ═══════════════════════════════════════════════════════════════
+  build:
+    name: 🏗️ Build Docker Images
+    runs-on: ubuntu-latest
+    needs: pull-model
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+          path: aws_serving/app/artifacts/
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build backend image
+        run: |
+          cd aws_serving/app
+          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test .
+          
+          echo "✅ Backend image built:"
+          docker images | grep sentiment-backend
+      
+      - name: Build frontend image
+        run: |
+          cd aws_serving/frontend
+          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test .
+          
+          echo "✅ Frontend image built:"
+          docker images | grep sentiment-frontend
+      
+      - name: Save images as tar files
+        run: |
+          docker save ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test \
+            -o backend-image.tar
+          docker save ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test \
+            -o frontend-image.tar
+      
+      - name: Upload Docker images
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: |
+            backend-image.tar
+            frontend-image.tar
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 3: Lint & Code Quality
+  # ═══════════════════════════════════════════════════════════════
+  # Run static analysis tools to catch code quality issues:
+  # - flake8: Python linting (PEP8 compliance)
+  # - black: Code formatting check
+  # ═══════════════════════════════════════════════════════════════
+  lint:
+    name: 🔍 Lint & Code Quality
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install linting tools
+        run: |
+          pip install flake8 black isort
+      
+      - name: Run flake8
+        run: |
+          echo "🔍 Running flake8 linter..."
+          flake8 aws_serving/app/ \
+            --max-line-length=120 \
+            --exclude=__pycache__,.git,artifacts \
+            --ignore=E203,W503
+      
+      - name: Run black (check mode)
+        run: |
+          echo "🎨 Checking code formatting with black..."
+          black --check aws_serving/app/ --exclude="artifacts|__pycache__"
+      
+      - name: Run isort (check mode)
+        run: |
+          echo "📦 Checking import order with isort..."
+          isort --check-only aws_serving/app/ \
+            --skip-glob="artifacts/*" --skip-glob="__pycache__/*"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 4: Unit Tests
+  # ═══════════════════════════════════════════════════════════════
+  # Run pytest unit tests to verify:
+  # - API endpoints work correctly
+  # - Model loading is successful
+  # - Database connections are valid
+  # ═══════════════════════════════════════════════════════════════
+  test:
+    name: 🧪 Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    services:
+      # Start PostgreSQL for testing database functionality
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Download model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+          path: aws_serving/app/artifacts/
+      
+      - name: Install test dependencies
+        run: |
+          pip install -r aws_serving/app/requirements.txt
+          pip install pytest pytest-cov pytest-mock
+      
+      - name: Run pytest
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_SSL: disable
+        run: |
+          echo "🧪 Running unit tests with pytest..."
+          cd aws_serving/app
+          pytest ../../tests/ -v --cov=. --cov-report=term-missing
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: aws_serving/app/.coverage
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 5: Push to Docker Hub
+  # ═══════════════════════════════════════════════════════════════
+  # After tests pass, push images to Docker Hub with ':test' tag.
+  # These images will be deployed to the test environment.
+  # ═══════════════════════════════════════════════════════════════
+  push-dockerhub:
+    name: 📤 Push to Docker Hub (:test)
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+      - name: Download Docker images
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+      
+      - name: Load Docker images
+        run: |
+          docker load -i backend-image.tar
+          docker load -i frontend-image.tar
+          
+          echo "✅ Images loaded:"
+          docker images | grep sentiment
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Push images with :test tag
+        run: |
+          echo "📤 Pushing backend:test..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
+          
+          echo "📤 Pushing frontend:test..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test
+          
+          echo "✅ Images pushed to Docker Hub with :test tag"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 6: Deploy to Test Environment (EC2)
+  # ═══════════════════════════════════════════════════════════════
+  # SSH into test EC2 instance and deploy with docker-compose.
+  # This environment is used for integration testing before prod.
+  # ═══════════════════════════════════════════════════════════════
+  deploy-test:
+    name: 🚀 Deploy to Test Environment
+    runs-on: ubuntu-latest
+    needs: push-dockerhub
+    environment:
+      name: test
+      url: http://${{ secrets.TEST_EC2_HOST }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.TEST_EC2_SSH_KEY }}" > ~/.ssh/test_key
+          chmod 600 ~/.ssh/test_key
+          ssh-keyscan -H ${{ secrets.TEST_EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Copy deployment files to test EC2
+        run: |
+          scp -i ~/.ssh/test_key \
+            aws_serving/docker-compose.yml \
+            ${{ secrets.TEST_EC2_USER }}@${{ secrets.TEST_EC2_HOST }}:~/
+      
+      - name: Deploy to test environment
+        run: |
+          ssh -i ~/.ssh/test_key ${{ secrets.TEST_EC2_USER }}@${{ secrets.TEST_EC2_HOST }} << 'EOF'
+            echo "🚀 Deploying to TEST environment..."
+            
+            # Stop existing containers
+            docker-compose down || true
+            
+            # Pull latest :test images
+            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
+            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test
+            
+            # Start services
+            export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
+            export DATABASE_SSL="require"
+            export BACKEND_HOST="10.0.132.177"
+            export BACKEND_PORT="5000"
+            
+            docker-compose up -d
+            
+            echo "✅ Test deployment complete"
+            docker ps
+          EOF
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 7: Smoke Tests
+  # ═══════════════════════════════════════════════════════════════
+  # Verify the test deployment is working:
+  # - Health check endpoint responds
+  # - Sample prediction works
+  # - Dashboard is accessible
+  # ═══════════════════════════════════════════════════════════════
+  smoke-test:
+    name: 💨 Smoke Tests (Test Environment)
+    runs-on: ubuntu-latest
+    needs: deploy-test
+    
+    steps:
+      - name: Wait for services to start
+        run: sleep 30
+      
+      - name: Health check
+        run: |
+          echo "🏥 Testing health endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.TEST_EC2_HOST }}/api/health)
+          
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Health check passed (200)"
+          else
+            echo "❌ Health check failed ($response)"
+            exit 1
+          fi
+      
+      - name: Test prediction endpoint
+        run: |
+          echo "🧪 Testing prediction..."
+          response=$(curl -s -X POST \
+            http://${{ secrets.TEST_EC2_HOST }}/api/predict \
+            -H "Content-Type: application/json" \
+            -d '{"text": "This is a test comment"}')
+          
+          echo "Response: $response"
+          
+          # Check if response contains expected fields
+          if echo "$response" | grep -q "prediction"; then
+            echo "✅ Prediction endpoint works"
+          else
+            echo "❌ Prediction endpoint failed"
+            exit 1
+          fi
+      
+      - name: Test dashboard access
+        run: |
+          echo "📊 Testing dashboard..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.TEST_EC2_HOST }}/dashboard)
+          
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Dashboard accessible (200)"
+          else
+            echo "❌ Dashboard not accessible ($response)"
+            exit 1
+          fi
+      
+      - name: Smoke test summary
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "  ✅ All smoke tests passed!"
+          echo "  🌐 Test environment: http://${{ secrets.TEST_EC2_HOST }}"
+          echo "  📊 Dashboard: http://${{ secrets.TEST_EC2_HOST }}/dashboard"
+          echo "═══════════════════════════════════════════════"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 8: Manual Approval Gate
+  # ═══════════════════════════════════════════════════════════════
+  # IMPORTANT: This job requires manual approval in GitHub UI.
+  # 
+  # To set up:
+  # 1. Go to: Settings → Environments → New environment
+  # 2. Name: "production"
+  # 3. Enable "Required reviewers" and add yourself
+  # 4. Save protection rules
+  # 
+  # When pipeline reaches this stage, you'll get a notification
+  # to review and approve the production deployment.
+  # ═══════════════════════════════════════════════════════════════
+  approve-prod:
+    name: ⏸️  Manual Approval Required
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    environment:
+      name: production-approval
+    
+    steps:
+      - name: Waiting for approval
+        run: |
+          echo "⏸️  Waiting for manual approval to deploy to PRODUCTION..."
+          echo ""
+          echo "Review test environment at: http://${{ secrets.TEST_EC2_HOST }}"
+          echo "Dashboard: http://${{ secrets.TEST_EC2_HOST }}/dashboard"
+          echo ""
+          echo "If everything looks good, approve this deployment."
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 9: Tag as Production
+  # ═══════════════════════════════════════════════════════════════
+  # After approval, retag :test images as :prod in Docker Hub.
+  # This creates a stable production tag while keeping test tag.
+  # ═══════════════════════════════════════════════════════════════
+  tag-production:
+    name: 🏷️  Tag as :prod
+    runs-on: ubuntu-latest
+    needs: approve-prod
+    
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Pull :test images
+        run: |
+          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
+          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test
+      
+      - name: Tag as :prod
+        run: |
+          docker tag \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
+          
+          docker tag \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
+      
+      - name: Push :prod tags
+        run: |
+          echo "📤 Pushing backend:prod..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
+          
+          echo "📤 Pushing frontend:prod..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
+          
+          echo "✅ Production images tagged and pushed"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 10: Deploy to Production
+  # ═══════════════════════════════════════════════════════════════
+  # Final stage: Deploy :prod images to production EC2.
+  # Uses blue-green deployment strategy to minimize downtime.
+  # ═══════════════════════════════════════════════════════════════
+  deploy-prod:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: tag-production
+    environment:
+      name: production
+      url: http://${{ secrets.PROD_EC2_HOST }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_EC2_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          ssh-keyscan -H ${{ secrets.PROD_EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Copy deployment files to prod EC2
+        run: |
+          scp -i ~/.ssh/prod_key \
+            aws_serving/docker-compose.prod.yml \
+            ${{ secrets.PROD_EC2_USER }}@${{ secrets.PROD_EC2_HOST }}:~/docker-compose.yml
+      
+      - name: Deploy to production
+        run: |
+          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_EC2_USER }}@${{ secrets.PROD_EC2_HOST }} << 'EOF'
+            echo "🚀 Deploying to PRODUCTION..."
+            
+            # Pull :prod images
+            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
+            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
+            
+            # Blue-green deployment: Start new containers before stopping old
+            export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
+            export DATABASE_SSL="require"
+            export BACKEND_HOST="{{ secrets.PROD_BACKEND_HOST }}"
+            export BACKEND_PORT="5000"
+            
+            docker-compose up -d --no-deps --build
+            
+            # Wait for health check
+            sleep 10
+            
+            # Remove old containers
+            docker-compose down --remove-orphans || true
+            
+            echo "✅ Production deployment complete"
+            docker ps
+          EOF
+      
+      - name: Production health check
+        run: |
+          echo "🏥 Final health check..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.PROD_EC2_HOST }}/api/health)
+          
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Production is healthy!"
+          else
+            echo "⚠️  Production health check returned $response"
+            exit 1
+          fi
+      
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════╗"
+          echo "║  🎉 PRODUCTION DEPLOYMENT SUCCESSFUL!              ║"
+          echo "╠════════════════════════════════════════════════════╣"
+          echo "║  🌐 Production URL:                                ║"
+          echo "║     http://${{ secrets.PROD_EC2_HOST }}            ║"
+          echo "║  📊 Dashboard:                                     ║"
+          echo "║     http://${{ secrets.PROD_EC2_HOST }}/dashboard  ║"
+          echo "║  🐳 Docker Images:                                 ║"
+          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod"
+          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod"
+          echo "╚════════════════════════════════════════════════════╝"

@@ -5,8 +5,8 @@ stages:
     deps:
     - path: data/raw/YoutubeCommentsDataSet.csv
       hash: md5
-      md5: dc4323696d2aac0cd2f9a10707b9a18a
-      size: 3488499
+      md5: 7f7869a48c0358a37bb032133dc7ce23
+      size: 3488752
     - path: src/pretrain.py
       hash: md5
       md5: 851764546a82fdfec1748f5f0bc6b844
@@ -24,7 +24,7 @@ stages:
     outs:
     - path: data/processed/metadata.json
       hash: md5
-      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      md5: 92045d92bb775c4471017c8bdc7d6674
       size: 278
     - path: data/processed/test_labels.npy
       hash: md5
@@ -32,22 +32,22 @@ stages:
       size: 29584
     - path: data/processed/test_vectors.npy
       hash: md5
-      md5: 84147651940975060dd5da3565c62179
+      md5: 909bc8ac3b55890b750b5c1c07acc551
       size: 11429056
     - path: data/processed/train_labels.npy
       hash: md5
-      md5: e2d46f5af07a7ef1d0b1f251fff5a251
-      size: 117936
+      md5: 81687550bab8261796a46e3a386ebab9
+      size: 117944
     - path: data/processed/train_vectors.npy
       hash: md5
-      md5: b27308c0bfeffb2dfededb3aa0c18e0e
-      size: 45709632
+      md5: b26510a1a738f2232f7e55223918928d
+      size: 45712736
   train_svm_baseline:
     cmd: python src/train_svm_noSMOTE.py
     deps:
     - path: data/processed/metadata.json
       hash: md5
-      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      md5: 92045d92bb775c4471017c8bdc7d6674
       size: 278
     - path: data/processed/test_labels.npy
       hash: md5
@@ -55,16 +55,16 @@ stages:
       size: 29584
     - path: data/processed/test_vectors.npy
       hash: md5
-      md5: 84147651940975060dd5da3565c62179
+      md5: 909bc8ac3b55890b750b5c1c07acc551
       size: 11429056
     - path: data/processed/train_labels.npy
       hash: md5
-      md5: e2d46f5af07a7ef1d0b1f251fff5a251
-      size: 117936
+      md5: 81687550bab8261796a46e3a386ebab9
+      size: 117944
     - path: data/processed/train_vectors.npy
       hash: md5
-      md5: b27308c0bfeffb2dfededb3aa0c18e0e
-      size: 45709632
+      md5: b26510a1a738f2232f7e55223918928d
+      size: 45712736
     - path: src/train_svm_noSMOTE.py
       hash: md5
       md5: efbef06374c7947a127fa152e9143d25
@@ -84,23 +84,23 @@ stages:
     outs:
     - path: models/svm_baseline_info.json
       hash: md5
-      md5: 17312c732e87cc7291da72742a63f94f
+      md5: 826be3973f0046199e489719d029c3ea
       size: 565
     - path: models/svm_baseline_no_smote.joblib
       hash: md5
-      md5: 80e9bf348cf73c48bcb22086aed89d4c
-      size: 24788915
+      md5: 7178079b49d8a7348306ca777c9cb6cd
+      size: 24726115
     - path: models/svm_baseline_scaler.joblib
       hash: md5
-      md5: 64438904e51e8a7c6d7b28ba4d6768c6
+      md5: 7120a2c77292bf57d984567197323c80
       size: 9895
   preprocess_smote:
     cmd: python src/pretrain.py --smote
     deps:
     - path: data/raw/YoutubeCommentsDataSet.csv
       hash: md5
-      md5: dc4323696d2aac0cd2f9a10707b9a18a
-      size: 3488499
+      md5: 7f7869a48c0358a37bb032133dc7ce23
+      size: 3488752
     - path: src/pretrain.py
       hash: md5
       md5: 851764546a82fdfec1748f5f0bc6b844
@@ -124,26 +124,26 @@ stages:
       size: 277
     - path: data/processed/smote/train_labels.npy
       hash: md5
-      md5: 15c71552b382e27974dd1040a2b9c8aa
+      md5: 395cac478ba22bcadcd5a57e5e7dcedf
       size: 219632
     - path: data/processed/smote/train_vectors.npy
       hash: md5
-      md5: d01a2ca24f80c97ca9ddcce65d7e2536
+      md5: c3ef495c8cbc5dd37c2e9f03a0355be5
       size: 85167680
   train_svm_smote:
     cmd: python src/train_svm.py
     deps:
     - path: data/processed/metadata.json
       hash: md5
-      md5: 9b58d26c87471c25e3d6c9ac3da5bd0e
+      md5: 92045d92bb775c4471017c8bdc7d6674
       size: 278
     - path: data/processed/smote/train_labels.npy
       hash: md5
-      md5: 15c71552b382e27974dd1040a2b9c8aa
+      md5: 395cac478ba22bcadcd5a57e5e7dcedf
       size: 219632
     - path: data/processed/smote/train_vectors.npy
       hash: md5
-      md5: d01a2ca24f80c97ca9ddcce65d7e2536
+      md5: c3ef495c8cbc5dd37c2e9f03a0355be5
       size: 85167680
     - path: data/processed/test_labels.npy
       hash: md5
@@ -151,7 +151,7 @@ stages:
       size: 29584
     - path: data/processed/test_vectors.npy
       hash: md5
-      md5: 84147651940975060dd5da3565c62179
+      md5: 909bc8ac3b55890b750b5c1c07acc551
       size: 11429056
     - path: src/train_svm.py
       hash: md5
@@ -172,23 +172,23 @@ stages:
     outs:
     - path: models/svm_model_info.json
       hash: md5
-      md5: 5c772bfd2b6075cc4b434136b9ec6c92
+      md5: 30134b11fc66c829b4a662d9e3fbbb7c
       size: 547
     - path: models/svm_scaler.joblib
       hash: md5
-      md5: a3256eac0d59d93e2883fb53bb0e40e9
+      md5: af4af2a3e1483e6e331f466a0367d1a8
       size: 9895
     - path: models/svm_sentiment.joblib
       hash: md5
-      md5: e2e07ce1fdafb0f4a669b4f1f5bf8f6f
-      size: 38780755
+      md5: 12e4641697d19a8af1c3aac35c8380ba
+      size: 38912643
   train_bert:
     cmd: python src/train_bert.py
     deps:
     - path: data/raw/YoutubeCommentsDataSet.csv
       hash: md5
-      md5: dc4323696d2aac0cd2f9a10707b9a18a
-      size: 3488499
+      md5: 7f7869a48c0358a37bb032133dc7ce23
+      size: 3488752
     - path: src/train_bert.py
       hash: md5
       md5: 8addf1536192f8b98e507d33213b6245
@@ -211,11 +211,11 @@ stages:
     outs:
     - path: models/distilbert_info.json
       hash: md5
-      md5: 98b40820c8a18b73694ed4377ca51cff
+      md5: b9e4e488e88d2c89dfe9700d55f0acbd
       size: 457
     - path: models/distilbert_sentiment/
       hash: md5
-      md5: 098e86fcb78f53797df2c2695b54be00.dir
+      md5: 19928efb4f09c9ecfbb36f45339af4de.dir
       size: 268553655
       nfiles: 5
   evaluate:
@@ -223,15 +223,15 @@ stages:
     deps:
     - path: models/distilbert_info.json
       hash: md5
-      md5: 98b40820c8a18b73694ed4377ca51cff
+      md5: b9e4e488e88d2c89dfe9700d55f0acbd
       size: 457
     - path: models/svm_baseline_info.json
       hash: md5
-      md5: 17312c732e87cc7291da72742a63f94f
+      md5: 826be3973f0046199e489719d029c3ea
       size: 565
     - path: models/svm_model_info.json
       hash: md5
-      md5: 5c772bfd2b6075cc4b434136b9ec6c92
+      md5: 30134b11fc66c829b4a662d9e3fbbb7c
       size: 547
     - path: src/evaluate.py
       hash: md5
@@ -247,5 +247,5 @@ stages:
     outs:
     - path: models/model_comparison.csv
       hash: md5
-      md5: 24032d0dee86ee2ccecdb4d9becc6269
+      md5: 0aa2b81baefe338fc5383d27954d5cea
       size: 131

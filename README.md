@@ -620,3 +620,7 @@ This project is licensed under the MIT License — see LICENSE file for details.
 **Sairam**
 - GitHub: [@sairam030](https://github.com/sairam030)
 - DagsHub: [@sairam030](https://dagshub.com/sairam030)
+
+
+
+and i want to make a firefox and chrome extension for this project.. so that when that extention is added and then when the user is on a youtube video page, the extension can analyze the comments and show the sentiment distribution in a small popup or sidebar. The extension will use the FastAPI backend to get predictions for the comments.
