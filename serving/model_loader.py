@@ -279,8 +279,12 @@ class ModelLoader:
         info = {}
 
         # Look for info JSON
-        for fname in ["distilbert_info.json", "svm_model_info.json",
-                       "svm_baseline_info.json", "model_info.json"]:
+        for fname in [
+            "distilbert_info.json",
+            "svm_model_info.json",
+            "svm_baseline_info.json",
+            "model_info.json",
+        ]:
             candidate = os.path.join(model_dir, fname)
             if os.path.exists(candidate):
                 with open(candidate) as f:

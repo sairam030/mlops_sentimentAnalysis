@@ -163,7 +163,6 @@ def predict():
             ]
 
         elif MODEL_TYPE == "sklearn":
-            import numpy as np
             # Encode texts → vectors → scale → predict
             embeddings = EMBEDDER.encode(texts)
             if SCALER is not None:

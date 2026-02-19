@@ -12,9 +12,7 @@ Usage:
 """
 
 import argparse
-import json
 import os
-import shutil
 import tarfile
 import tempfile
 
@@ -70,9 +68,9 @@ def main():
         print("❌ Specify --version <N> or --latest")
         return
 
-    print(f"\n{'='*60}")
+    print("\n" + "=" * 60)
     print(f"  Promoting model '{model_name}' v{version} → {args.alias}")
-    print(f"{'='*60}")
+    print("" + "=" * 60)
 
     # ── Set alias in MLflow ─────────────────────────────────
     print(f"\n[1/3] Setting alias '{args.alias}' on version {version}...")
@@ -84,7 +82,7 @@ def main():
         print(f"  Continuing with S3 upload anyway...")
 
     # ── Download model artifacts ────────────────────────────
-    print(f"\n[2/3] Downloading model artifacts...")
+    print("\n[2/3] Downloading model artifacts...")
     model_uri = f"models:/{model_name}/{version}"
     local_dir = mlflow.artifacts.download_artifacts(artifact_uri=model_uri)
     print(f"  ✅ Downloaded to {local_dir}")
@@ -128,9 +126,9 @@ def main():
             os.unlink(archive_path)
 
     # ── Summary ─────────────────────────────────────────────
-    print(f"\n{'='*60}")
+    print("\n" + "=" * 60)
     print(f"  ✅ Model v{version} promoted to '{args.alias}'")
-    print(f"{'='*60}")
+    print("" + "=" * 60)
     if not args.skip_s3:
         print(f"  S3:     s3://{bucket}/{s3_key}")
     print(f"  MLflow: {model_name} v{version} (alias: {args.alias})")

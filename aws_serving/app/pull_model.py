@@ -8,13 +8,12 @@ Usage:
 
 import os
 import shutil
+import mlflow
+import yaml
 
 from dotenv import load_dotenv
 
 load_dotenv()
-
-import mlflow
-import yaml
 
 
 def load_params(path="../../params.yaml"):
@@ -44,7 +43,7 @@ def main():
     local_path = mlflow.artifacts.download_artifacts(artifact_uri=model_uri, dst_path=artifacts_dir)
 
     print(f"[pull_model] ✅ Model downloaded to: {local_path}")
-    print(f"[pull_model] Contents:")
+    print("[pull_model] Contents:")
     for root, dirs, files in os.walk(artifacts_dir):
         for f in files:
             fpath = os.path.join(root, f)

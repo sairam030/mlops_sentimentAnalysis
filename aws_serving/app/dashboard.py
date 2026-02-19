@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, send_file, request
 from sqlalchemy import func
 import pandas as pd
-import plotly
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -31,9 +30,9 @@ def load_model_metrics():
     """Load baseline model metrics from artifact JSON files."""
     metrics = {}
     files = {
-        "distilbert":    "distilbert_info.json",
-        "svm":           "svm_model_info.json",
-        "svm_baseline":  "svm_baseline_info.json",
+        "distilbert": "distilbert_info.json",
+        "svm": "svm_model_info.json",
+        "svm_baseline": "svm_baseline_info.json",
     }
     for key, fname in files.items():
         path = os.path.join(ARTIFACTS_DIR, fname)
@@ -78,9 +77,9 @@ def api_stats():
         avg_response_time = db.query(func.avg(Prediction.response_time_ms)).scalar() or 0
 
         return jsonify({
-            "total_predictions":  total,
-            "recent_24h":         recent_24h,
-            "avg_confidence":     round(float(avg_confidence), 4),
+            "total_predictions": total,
+            "recent_24h": recent_24h,
+            "avg_confidence": round(float(avg_confidence), 4),
             "avg_response_time_ms": int(avg_response_time),
         })
     except Exception as e:
@@ -123,12 +122,12 @@ def api_drift_check():
             drift_detected = change_pct < -10
 
         return jsonify({
-            "drift_detected":             drift_detected,
-            "this_week_avg_confidence":   round(float(this_conf or 0), 4),
-            "last_week_avg_confidence":   round(float(last_conf or 0), 4),
-            "confidence_change_pct":      round(change_pct, 2),
-            "this_week_predictions":      this_count,
-            "last_week_predictions":      last_count,
+            "drift_detected": drift_detected,
+            "this_week_avg_confidence": round(float(this_conf or 0), 4),
+            "last_week_avg_confidence": round(float(last_conf or 0), 4),
+            "confidence_change_pct": round(change_pct, 2),
+            "this_week_predictions": this_count,
+            "last_week_predictions": last_count,
             "message": "⚠️ Confidence drop detected" if drift_detected else "✅ No significant drift detected",
         })
     except Exception as e:
@@ -283,20 +282,20 @@ def api_model_metrics_comparison():
 
         # Load from artifact JSON files
         for fname, label in [
-            ("distilbert_info.json",    "distilbert"),
-            ("svm_model_info.json",     "svm"),
-            ("svm_baseline_info.json",  "svm_baseline"),
+            ("distilbert_info.json", "distilbert"),
+            ("svm_model_info.json", "svm"),
+            ("svm_baseline_info.json", "svm_baseline"),
         ]:
             path = os.path.join(ARTIFACTS_DIR, fname)
             if os.path.exists(path):
                 with open(path) as f:
                     m = json.load(f)
                 comparison.append({
-                    "model":     label,
-                    "accuracy":  m.get("accuracy",  0),
-                    "f1_score":  m.get("f1_score",  0),
+                    "model": label,
+                    "accuracy": m.get("accuracy", 0),
+                    "f1_score": m.get("f1_score", 0),
                     "precision": m.get("precision", 0),
-                    "recall":    m.get("recall",    0),
+                    "recall": m.get("recall", 0),
                 })
 
         # Live estimate from recent predictions
@@ -304,11 +303,11 @@ def api_model_metrics_comparison():
         rows = db.query(Prediction.confidence).filter(Prediction.timestamp >= recent).all()
         avg = sum(r[0] for r in rows) / len(rows) if rows else 0
         comparison.append({
-            "model":     "current (live)",
-            "accuracy":  avg,
-            "f1_score":  avg * 0.95,
+            "model": "current (live)",
+            "accuracy": avg,
+            "f1_score": avg * 0.95,
             "precision": avg * 0.97,
-            "recall":    avg * 0.93,
+            "recall": avg * 0.93,
         })
 
         df = pd.DataFrame(comparison)
@@ -343,15 +342,15 @@ def api_download_csv():
     try:
         predictions = db.query(Prediction).all()
         data = [{
-            "id":              p.id,
-            "timestamp":       p.timestamp.isoformat(),
-            "input_text":      p.input_text,
-            "prediction":      p.prediction,
-            "confidence":      p.confidence,
-            "model_type":      p.model_type,
-            "model_version":   p.model_version,
+            "id": p.id,
+            "timestamp": p.timestamp.isoformat(),
+            "input_text": p.input_text,
+            "prediction": p.prediction,
+            "confidence": p.confidence,
+            "model_type": p.model_type,
+            "model_version": p.model_version,
             "response_time_ms": p.response_time_ms,
-            "user_ip":         p.user_ip,
+            "user_ip": p.user_ip,
         } for p in predictions]
 
         df = pd.DataFrame(data)
@@ -370,7 +369,7 @@ def api_download_filtered():
     """Download filtered predictions as CSV."""
     db = get_db_session()
     try:
-        days  = int(request.args.get("days", 7))
+        days = int(request.args.get("days", 7))
         label = request.args.get("label", None)
 
         query = db.query(Prediction).filter(
@@ -381,13 +380,13 @@ def api_download_filtered():
 
         predictions = query.all()
         data = [{
-            "id":              p.id,
-            "timestamp":       p.timestamp.isoformat(),
-            "input_text":      p.input_text,
-            "prediction":      p.prediction,
-            "confidence":      p.confidence,
-            "model_type":      p.model_type,
-            "model_version":   p.model_version,
+            "id": p.id,
+            "timestamp": p.timestamp.isoformat(),
+            "input_text": p.input_text,
+            "prediction": p.prediction,
+            "confidence": p.confidence,
+            "model_type": p.model_type,
+            "model_version": p.model_version,
             "response_time_ms": p.response_time_ms,
         } for p in predictions]
 

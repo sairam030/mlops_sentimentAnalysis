@@ -6,7 +6,6 @@ Usage:
     python inspect_run.py
 """
 
-import os
 import sys
 from dotenv import load_dotenv
 load_dotenv()
@@ -16,7 +15,7 @@ from mlflow import MlflowClient
 
 # ── CONFIG — edit these to match your setup ───────────────────────────────────
 TRACKING_URI = "https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow"
-MODEL_NAME   = "sentiment-best-model"
+MODEL_NAME = "sentiment-best-model"
 # ──────────────────────────────────────────────────────────────────────────────
 
 mlflow.set_tracking_uri(TRACKING_URI)
@@ -53,6 +52,7 @@ except Exception as e:
 print(f"\n[2] All artifacts in run {RUN_ID}:")
 print("-" * 65)
 
+
 def list_artifacts_recursive(client, run_id, path="", indent=0):
     """Walk the artifact tree and print every file."""
     try:
@@ -73,6 +73,7 @@ def list_artifacts_recursive(client, run_id, path="", indent=0):
         else:
             size_kb = (artifact.file_size or 0) / 1024
             print(f"{prefix}📄 {artifact.path}  ({size_kb:.1f} KB)")
+
 
 list_artifacts_recursive(client, RUN_ID)
 

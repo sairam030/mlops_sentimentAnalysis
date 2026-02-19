@@ -24,23 +24,22 @@ Run from anywhere:
 
 import os
 import sys
+import yaml
+import mlflow
+from mlflow import MlflowClient
+from dotenv import load_dotenv
 
 # ── Anchor all paths to this script's location ────────────────────────────────
 # aws_serving/scripts/pull_model.py
-SCRIPTS_DIR   = os.path.dirname(os.path.abspath(__file__))   # aws_serving/scripts/
-AWS_SERVING   = os.path.dirname(SCRIPTS_DIR)                  # aws_serving/
-PROJECT_ROOT  = os.path.dirname(AWS_SERVING)                  # sentiment_mlops/
+SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))  # aws_serving/scripts/
+AWS_SERVING = os.path.dirname(SCRIPTS_DIR)  # aws_serving/
+PROJECT_ROOT = os.path.dirname(AWS_SERVING)  # sentiment_mlops/
 
 # ── Load .env from project root ───────────────────────────────────────────────
 # Your .env must have:
 #   MLFLOW_TRACKING_USERNAME=sairam030
 #   MLFLOW_TRACKING_PASSWORD=<your_dagshub_token>
-from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
-
-import yaml
-import mlflow
-from mlflow import MlflowClient
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1.  Load params.yaml from project root
@@ -54,14 +53,15 @@ if not os.path.exists(PARAMS_PATH):
 with open(PARAMS_PATH) as f:
     params = yaml.safe_load(f)
 
-TRACKING_URI  = params["mlflow"]["tracking_uri"]
+TRACKING_URI = params["mlflow"]["tracking_uri"]
 # https://dagshub.com/sairam030/mlops_sentimentAnalysis.mlflow
 
-MODEL_NAME    = params["mlflow"]["registered_model_name"]
+# sentiment-best-model
+MODEL_NAME = params["mlflow"].get("registered_model_name")
 # sentiment-best-model
 
 # Artifacts land here — Flask app will load from this folder
-OUTPUT_DIR    = os.path.join(AWS_SERVING, "app", "artifacts")
+OUTPUT_DIR = os.path.join(AWS_SERVING, "app", "artifacts")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 print(f"✅  params.yaml  : {PARAMS_PATH}")
@@ -93,8 +93,8 @@ if not versions:
     print(f"    Run evaluate.py (or dvc repro evaluate) first.")
     sys.exit(1)
 
-latest  = sorted(versions, key=lambda v: int(v.version))[-1]
-RUN_ID  = latest.run_id
+latest = sorted(versions, key=lambda v: int(v.version))[-1]
+RUN_ID = latest.run_id
 VERSION = latest.version
 print(f"    ✅  version {VERSION}  |  run_id: {RUN_ID}")
 
@@ -133,6 +133,7 @@ except Exception as e:
 # ── Step B: Also download run-level artifacts (info JSONs, comparison) ────────
 print(f"\n[3/3] Downloading remaining run artifacts (info files, comparison) ...")
 
+
 def list_artifacts_recursive(client, run_id, path=""):
     """Recursively list all artifacts in a run."""
     items = client.list_artifacts(run_id, path)
@@ -143,6 +144,7 @@ def list_artifacts_recursive(client, run_id, path=""):
         else:
             files.append(item)
     return files
+
 
 all_artifacts = list_artifacts_recursive(client, RUN_ID)
 
@@ -171,10 +173,10 @@ for artifact in all_artifacts:
 # ─────────────────────────────────────────────────────────────────────────────
 # 5.  Summary
 # ─────────────────────────────────────────────────────────────────────────────
-print(f"\n{'='*60}")
+print("\n" + "=" * 60)
 print(f"  ✅  downloaded : {downloaded} extra artifact(s)")
 print(f"  ❌  failed     : {failed}")
-print(f"{'='*60}")
+print("" + "=" * 60)
 
 if fail:
     print("\n  Failed files:")
@@ -184,14 +186,15 @@ if fail:
 
 print(f"\n  aws_serving/app/artifacts/ now contains:\n")
 for root, dirs, files in os.walk(OUTPUT_DIR):
-    level  = root.replace(OUTPUT_DIR, "").count(os.sep)
-    pad    = "  " * (level + 1)
+    level = root.replace(OUTPUT_DIR, "").count(os.sep)
+    pad = "  " * (level + 1)
     print(f"{'  ' * level}  📁 {os.path.basename(root) or 'artifacts'}/")
     for fname in sorted(files):
         fsize = os.path.getsize(os.path.join(root, fname)) / 1024
-        print(f"{pad}📄 {fname}  ({fsize:.1f} KB)")
+        print(f"{pad}📄 {fname} ({fsize:.1f} KB)")
 
 if not fail:
-    print(f"\n✅  All done.  Next step:")
+    print("\n✅  All done.  Next step:")
     print(f"    cd {os.path.join(AWS_SERVING, 'app')}")
-    print(f"    docker build -t sentiment-api:latest .")
+    print("    docker build -t sentiment-api:latest .")
+    
