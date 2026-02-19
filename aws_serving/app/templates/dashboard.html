@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sentiment Monitor · Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #060910;
+  --surface: #0d1117;
+  --card:    #111827;
+  --border:  #1f2d3d;
+  --accent:  #00e5ff;
+  --purple:  #7c3aed;
+  --green:   #10b981;
+  --yellow:  #f59e0b;
+  --red:     #ef4444;
+  --text:    #e2e8f0;
+  --muted:   #64748b;
+}
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse 100% 40% at 50% 0%, rgba(0,229,255,0.05) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  height: 60px;
+  background: rgba(6,9,16,0.9);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.95rem; font-weight: 800; text-decoration: none; color: var(--text);
+}
+.logo-pulse {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+
+.header-right { display: flex; align-items: center; gap: 12px; }
+
+.model-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--green); color: var(--green);
+  background: rgba(16,185,129,0.08);
+}
+
+.back-link {
+  font-size: 0.78rem; font-weight: 600; color: var(--muted);
+  text-decoration: none; padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace; transition: all 0.2s;
+}
+.back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+.refresh-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; border-radius: 8px;
+  padding: 5px 12px; font-size: 0.78rem; font-family: 'Syne', sans-serif;
+  transition: all 0.2s;
+}
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── MAIN ── */
+main {
+  position: relative; z-index: 1;
+  max-width: 1380px; margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* ── SECTION LABELS ── */
+.section-label {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── DRIFT ALERT ── */
+.drift-banner {
+  display: none;
+  border-radius: 12px; padding: 12px 18px; margin-bottom: 20px;
+  font-size: 0.83rem; align-items: center; gap: 10px;
+}
+.drift-banner.show { display: flex; }
+.drift-banner.warn {
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5;
+}
+.drift-banner.ok {
+  background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7;
+}
+
+/* ── KPI GRID ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-bottom: 28px;
+}
+
+.kpi-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 22px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.25s, transform 0.2s;
+}
+.kpi-card:hover { border-color: #2a3f5a; transform: translateY(-2px); }
+.kpi-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--kpi-color, var(--accent)), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.kpi-card:hover::after { opacity: 1; }
+
+.kpi-icon { font-size: 1.3rem; margin-bottom: 10px; display: block; }
+.kpi-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.9rem; font-weight: 700; line-height: 1;
+  color: var(--kpi-color, #fff); margin-bottom: 5px;
+}
+.kpi-label {
+  font-size: 0.75rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em;
+}
+.kpi-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem; margin-top: 6px; color: var(--green);
+}
+
+/* ── CHART GRID ── */
+.grid-2    { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.grid-3-1  { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+  transition: border-color 0.25s;
+}
+.chart-card:hover { border-color: #253040; }
+
+.chart-head {
+  padding: 18px 20px 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chart-title { font-size: 0.83rem; font-weight: 700; color: #fff; }
+.chart-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.63rem; padding: 3px 8px; border-radius: 4px;
+  background: rgba(0,229,255,0.08); color: var(--accent);
+  border: 1px solid rgba(0,229,255,0.18);
+}
+
+.chart-body { padding: 6px; }
+.chart-body .plot { width: 100%; height: 290px; }
+.chart-body.tall .plot { height: 360px; }
+
+/* ── DOWNLOAD PANEL ── */
+.download-panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px 24px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.download-panel h3 { font-size: 0.83rem; font-weight: 700; margin-right: 6px; }
+select.dl-select {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 7px 12px;
+  font-family: 'Syne', sans-serif; font-size: 0.78rem; cursor: pointer;
+}
+.dl-btn {
+  border: none; border-radius: 8px; padding: 8px 16px;
+  font-family: 'Syne', sans-serif; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; transition: opacity 0.2s;
+}
+.dl-btn.primary { background: var(--purple); color: #fff; }
+.dl-btn.primary:hover { opacity: 0.85; }
+.dl-btn.secondary {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+}
+.dl-btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+.last-upd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.63rem; color: #1f2d3d;
+  text-align: right; padding: 10px 4px 0;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 960px) {
+  .kpi-grid { grid-template-columns: repeat(2,1fr); }
+  .grid-2, .grid-3-1 { grid-template-columns: 1fr; }
+}
+@media (max-width: 500px) {
+  header { padding: 0 16px; }
+  main { padding: 20px 12px 40px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <a class="logo" href="/">
+    <div class="logo-pulse"></div>
+    Sentiment Monitor
+  </a>
+  <div class="header-right">
+    <span class="model-badge" id="modelBadge">⬤ LIVE</span>
+    <a class="back-link" href="/">← Analyze</a>
+    <button class="refresh-btn" onclick="loadAll()">↺ Refresh</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- DRIFT BANNER -->
+  <div class="drift-banner" id="driftBanner"></div>
+
+  <!-- KPIs -->
+  <div class="section-label">Overview</div>
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kpi-color: var(--accent)">
+      <span class="kpi-icon">🔮</span>
+      <div class="kpi-value" id="kpiTotal">—</div>
+      <div class="kpi-label">Total Predictions</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color: var(--green)">
+      <span class="kpi-icon">⚡</span>
+      <div class="kpi-value" id="kpiRecent">—</div>
+      <div class="kpi-label">Last 24 Hours</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color: #a78bfa">
+      <span class="kpi-icon">🎯</span>
+      <div class="kpi-value" id="kpiConf">—</div>
+      <div class="kpi-label">Avg Confidence</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color: var(--yellow)">
+      <span class="kpi-icon">⏱</span>
+      <div class="kpi-value" id="kpiRT">—</div>
+      <div class="kpi-label">Avg Response (ms)</div>
+      <div class="kpi-sub" id="kpiRTNote"></div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Timeline + Pie -->
+  <div class="section-label">Distribution & Volume</div>
+  <div class="grid-3-1">
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Predictions Over Time</span>
+        <span class="chart-badge">HOURLY</span>
+      </div>
+      <div class="chart-body"><div id="chartTimeline" class="plot"></div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Label Split</span>
+        <span class="chart-badge">ALL TIME</span>
+      </div>
+      <div class="chart-body"><div id="chartPie" class="plot"></div></div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Histogram + Confidence Ranges -->
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Confidence Distribution</span>
+        <span class="chart-badge">HISTOGRAM</span>
+      </div>
+      <div class="chart-body"><div id="chartHistogram" class="plot"></div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Predictions by Confidence Range</span>
+        <span class="chart-badge">0-100% in 10% steps</span>
+      </div>
+      <div class="chart-body"><div id="chartRanges" class="plot"></div></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Drift + Metrics -->
+  <div class="section-label">Model Health</div>
+  <div class="grid-3-1">
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Confidence Drift Over Time</span>
+        <span class="chart-badge">DAILY</span>
+      </div>
+      <div class="chart-body tall"><div id="chartDrift" class="plot"></div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <span class="chart-title">Model Metrics</span>
+        <span class="chart-badge">COMPARISON</span>
+      </div>
+      <div class="chart-body tall"><div id="chartMetrics" class="plot"></div></div>
+    </div>
+  </div>
+
+  <!-- DOWNLOAD -->
+  <div class="section-label">Export</div>
+  <div class="download-panel">
+    <h3>📦 Download Predictions</h3>
+    <select class="dl-select" id="dlDays">
+      <option value="1">Last 24h</option>
+      <option value="7" selected>Last 7 days</option>
+      <option value="30">Last 30 days</option>
+    </select>
+    <select class="dl-select" id="dlLabel">
+      <option value="all">All labels</option>
+      <option value="POSITIVE">POSITIVE</option>
+      <option value="NEGATIVE">NEGATIVE</option>
+    </select>
+    <button class="dl-btn primary" onclick="downloadFiltered()">⬇ Filtered CSV</button>
+    <button class="dl-btn secondary" onclick="downloadAll()">⬇ Full Export</button>
+  </div>
+
+  <div class="last-upd" id="lastUpd">—</div>
+</main>
+
+<script>
+// ── PLOTLY BASE LAYOUT ────────────────────────────────
+const BASE_LAYOUT = {
+  paper_bgcolor: 'transparent',
+  plot_bgcolor:  'transparent',
+  font: { family: "'JetBrains Mono', monospace", color: '#64748b', size: 10 },
+  margin: { t: 10, b: 44, l: 44, r: 12 },
+  legend: { bgcolor: 'transparent', font: { color: '#94a3b8', size: 10 } },
+  xaxis: { gridcolor: '#1a2536', zerolinecolor: '#1a2536', tickfont: { color: '#475569', size: 9 } },
+  yaxis: { gridcolor: '#1a2536', zerolinecolor: '#1a2536', tickfont: { color: '#475569', size: 9 } },
+};
+
+const PALETTE = ['#00e5ff', '#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#a78bfa'];
+
+// ── FETCH HELPER — calls app.py /dashboard/* routes ──
+async function get(path) {
+  try {
+    const r = await fetch(path);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d && !d.error) ? d : null;
+  } catch { return null; }
+}
+
+// ── RENDER PLOTLY FIGURE JSON ─────────────────────────
+function render(divId, fig, extraLayout = {}) {
+  const el = document.getElementById(divId);
+  if (!fig || !fig.data || fig.data.length === 0) {
+    el.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#334155;font-size:0.75rem">No data available yet</div>';
+    return;
+  }
+
+  // Colour traces
+  fig.data.forEach((t, i) => {
+    const c = PALETTE[i % PALETTE.length];
+    if (t.type === 'pie') {
+      t.marker = { colors: PALETTE }; t.hole = 0.5;
+      t.textfont = { color: '#e2e8f0', size: 11 };
+      t.textinfo = 'percent+label';
+    } else if (t.type === 'bar' || t.type === 'histogram') {
+      t.marker = { ...(t.marker||{}), color: c, opacity: 0.82 };
+    } else if (t.type === 'scatter') {
+      t.line = { color: c, width: 2 }; t.marker = { color: c, size: 5 };
+    } else if (t.type === 'box') {
+      t.marker = { color: c }; t.line = { color: c }; t.fillcolor = c + '28';
+    }
+  });
+
+  // Merge layout from figure (keep shapes/annotations for drift threshold line)
+  const figLayout = fig.layout || {};
+  const layout = {
+    ...BASE_LAYOUT,
+    ...extraLayout,
+    xaxis: { ...BASE_LAYOUT.xaxis, ...(figLayout.xaxis || {}), ...(extraLayout.xaxis || {}) },
+    yaxis: { ...BASE_LAYOUT.yaxis, ...(figLayout.yaxis || {}), ...(extraLayout.yaxis || {}) },
+    shapes:      figLayout.shapes      || extraLayout.shapes      || [],
+    annotations: figLayout.annotations || extraLayout.annotations || [],
+  };
+
+  Plotly.react(divId, fig.data, layout, { responsive: true, displayModeBar: false });
+}
+
+// ── LOAD STATS ────────────────────────────────────────
+async function loadStats() {
+  const d = await get('/dashboard/stats');
+  if (!d) return;
+
+  animCount('kpiTotal',  d.total_predictions  || 0);
+  animCount('kpiRecent', d.recent_24h         || 0);
+
+  const conf = d.avg_confidence || 0;
+  const confEl = document.getElementById('kpiConf');
+  confEl.textContent = (conf * 100).toFixed(1) + '%';
+  confEl.style.color = conf >= 0.85 ? 'var(--green)' : conf >= 0.7 ? 'var(--yellow)' : 'var(--red)';
+
+  const rt = d.avg_response_time_ms || 0;
+  document.getElementById('kpiRT').textContent = rt;
+  document.getElementById('kpiRTNote').textContent = rt < 200 ? '✓ fast' : rt < 500 ? '~ moderate' : '⚠ slow';
+}
+
+// ── LOAD DRIFT CHECK ─────────────────────────────────
+async function loadDriftCheck() {
+  const d = await get('/monitoring/drift');
+  const el = document.getElementById('driftBanner');
+  if (!d) { el.classList.remove('show'); return; }
+  el.classList.add('show');
+  if (d.drift_detected) {
+    el.className = 'drift-banner show warn';
+    el.innerHTML = `⚠️ &nbsp;<strong>Drift Detected</strong> — confidence dropped ${Math.abs(d.confidence_change_pct).toFixed(1)}% vs last week &nbsp;·&nbsp; this week avg: ${(d.this_week_avg_confidence*100).toFixed(1)}%`;
+  } else {
+    el.className = 'drift-banner show ok';
+    el.innerHTML = `✅ &nbsp;<strong>No Drift</strong> — confidence change: ${d.confidence_change_pct > 0 ? '+' : ''}${d.confidence_change_pct.toFixed(1)}% vs last week`;
+  }
+}
+
+// ── LOAD MODEL BADGE ─────────────────────────────────
+async function loadBadge() {
+  const d = await get('/health');
+  if (!d) return;
+  const b = document.getElementById('modelBadge');
+  b.textContent = `⬤ ${(d.model_type || 'LIVE').toUpperCase()}`;
+  if (d.status !== 'healthy') {
+    b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)';
+    b.style.background = 'rgba(239,68,68,0.08)';
+  }
+}
+
+// ── CHART LOADERS ─────────────────────────────────────
+// Each calls the app.py /dashboard/* endpoint
+async function loadTimeline()  { render('chartTimeline',  await get('/dashboard/predictions_over_time')); }
+async function loadPie()       { render('chartPie',       await get('/dashboard/label_distribution'), { margin: { t: 10, b: 10, l: 10, r: 10 } }); }
+async function loadHistogram() { render('chartHistogram', await get('/dashboard/confidence_histogram')); }
+async function loadRanges()    { render('chartRanges',    await get('/dashboard/confidence_ranges'), { barmode: 'group' }); }
+async function loadDrift()     { render('chartDrift',     await get('/dashboard/drift_timeline')); }
+async function loadMetrics() {
+  const fig = await get('/dashboard/model_metrics_comparison');
+  render('chartMetrics', fig, { barmode: 'group', margin: { t: 10, b: 60, l: 44, r: 12 } });
+}
+
+// ── DOWNLOADS ─────────────────────────────────────────
+function downloadAll()      { window.location.href = '/api/download/csv'; }
+function downloadFiltered() {
+  const days  = document.getElementById('dlDays').value;
+  const label = document.getElementById('dlLabel').value;
+  window.location.href = `/api/download/filtered?days=${days}&label=${label}`;
+}
+
+// ── ANIMATE COUNTER ───────────────────────────────────
+function animCount(id, target) {
+  const el = document.getElementById(id);
+  const start = parseInt(el.textContent.replace(/,/g,'')) || 0;
+  const t0 = performance.now();
+  (function step(now) {
+    const p = Math.min((now - t0) / 700, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(start + (target - start) * ease).toLocaleString();
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+// ── LOAD ALL ──────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('lastUpd').textContent = 'Refreshing…';
+  await Promise.all([
+    loadStats(), loadDriftCheck(), loadBadge(),
+    loadTimeline(), loadPie(), loadHistogram(),
+    loadRanges(), loadDrift(), loadMetrics(),
+  ]);
+  document.getElementById('lastUpd').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString();
+}
+
+// ── BOOT ─────────────────────────────────────────────
+loadAll();
+setInterval(loadAll, 60_000); // auto-refresh every 60s
+</script>
+</body>
+</html>

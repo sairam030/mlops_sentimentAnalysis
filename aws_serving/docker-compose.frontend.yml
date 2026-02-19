@@ -1,0 +1,16 @@
+version: "3.8"
+
+# Docker Compose for frontend EC2
+# Frontend proxies to backend EC2 using private IP
+
+services:
+  frontend:
+    image: sairam030/sentiment-frontend:test
+    container_name: sentiment-frontend-test
+    ports:
+      - "80:80"
+    environment:
+      # Set to backend EC2's private IP address
+      - BACKEND_HOST=10.0.132.177
+      - BACKEND_PORT=5000
+    restart: unless-stopped

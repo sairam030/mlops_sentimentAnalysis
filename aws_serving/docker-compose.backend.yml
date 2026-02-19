@@ -1,0 +1,23 @@
+version: "3.8"
+
+# Docker Compose for backend EC2 with AWS RDS PostgreSQL
+# This runs ONLY the backend container, connecting to external RDS
+
+services:
+  backend:
+    image: sairam030/sentiment-backend:test
+    container_name: sentiment-backend-test
+    ports:
+      - "5000:5000"
+    environment:
+      # Your actual RDS endpoint
+      - DATABASE_URL=postgresql://sentiment_user:YOUR_PASSWORD@sentiment-db.cv2iq0sos7cc.ap-south-2.rds.amazonaws.com:5432/sentiment_db
+      - DATABASE_SSL_MODE=require
+      - MODEL_VERSION=v1.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
