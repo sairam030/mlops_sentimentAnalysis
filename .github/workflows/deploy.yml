@@ -274,7 +274,7 @@ jobs:
     needs: push-dockerhub
     environment:
       name: test
-      url: http://${{ secrets.TEST_EC2_HOST }}
+      url: http://${{ secrets.TEST_FRONTEND_HOST }}
     
     steps:
       - name: Checkout code
@@ -285,17 +285,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.TEST_EC2_SSH_KEY }}" > ~/.ssh/test_key
           chmod 600 ~/.ssh/test_key
-          ssh-keyscan -H ${{ secrets.TEST_EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.TEST_FRONTEND_HOST }} >> ~/.ssh/known_hosts
       
       - name: Copy deployment files to test EC2
         run: |
           scp -i ~/.ssh/test_key \
             aws_serving/docker-compose.yml \
-            ${{ secrets.TEST_EC2_USER }}@${{ secrets.TEST_EC2_HOST }}:~/
+            ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }}:~/
       
       - name: Deploy to test environment
         run: |
-          ssh -i ~/.ssh/test_key ${{ secrets.TEST_EC2_USER }}@${{ secrets.TEST_EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/test_key ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }} << 'EOF'
             echo "🚀 Deploying to TEST environment..."
             
             # Stop existing containers
@@ -338,7 +338,7 @@ jobs:
         run: |
           echo "🏥 Testing health endpoint..."
           response=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.TEST_EC2_HOST }}/api/health)
+            http://${{ secrets.TEST_FRONTEND_HOST }}/api/health)
           
           if [ "$response" -eq 200 ]; then
             echo "✅ Health check passed (200)"
@@ -351,7 +351,7 @@ jobs:
         run: |
           echo "🧪 Testing prediction..."
           response=$(curl -s -X POST \
-            http://${{ secrets.TEST_EC2_HOST }}/api/predict \
+            http://${{ secrets.TEST_FRONTEND_HOST }}/api/predict \
             -H "Content-Type: application/json" \
             -d '{"text": "This is a test comment"}')
           
@@ -369,7 +369,7 @@ jobs:
         run: |
           echo "📊 Testing dashboard..."
           response=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.TEST_EC2_HOST }}/dashboard)
+            http://${{ secrets.TEST_FRONTEND_HOST }}/dashboard)
           
           if [ "$response" -eq 200 ]; then
             echo "✅ Dashboard accessible (200)"
@@ -383,8 +383,8 @@ jobs:
           echo ""
           echo "═══════════════════════════════════════════════"
           echo "  ✅ All smoke tests passed!"
-          echo "  🌐 Test environment: http://${{ secrets.TEST_EC2_HOST }}"
-          echo "  📊 Dashboard: http://${{ secrets.TEST_EC2_HOST }}/dashboard"
+          echo "  🌐 Test environment: http://${{ secrets.TEST_FRONTEND_HOST }}"
+          echo "  📊 Dashboard: http://${{ secrets.TEST_FRONTEND_HOST }}/dashboard"
           echo "═══════════════════════════════════════════════"
 
   # ═══════════════════════════════════════════════════════════════
@@ -413,8 +413,8 @@ jobs:
         run: |
           echo "⏸️  Waiting for manual approval to deploy to PRODUCTION..."
           echo ""
-          echo "Review test environment at: http://${{ secrets.TEST_EC2_HOST }}"
-          echo "Dashboard: http://${{ secrets.TEST_EC2_HOST }}/dashboard"
+          echo "Review test environment at: http://${{ secrets.TEST_FRONTEND_HOST }}"
+          echo "Dashboard: http://${{ secrets.TEST_FRONTEND_HOST }}/dashboard"
           echo ""
           echo "If everything looks good, approve this deployment."
 
@@ -473,7 +473,7 @@ jobs:
     needs: tag-production
     environment:
       name: production
-      url: http://${{ secrets.PROD_EC2_HOST }}
+      url: http://${{ secrets.PROD_FRONTEND_HOST }}
     
     steps:
       - name: Checkout code
@@ -484,17 +484,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.PROD_EC2_SSH_KEY }}" > ~/.ssh/prod_key
           chmod 600 ~/.ssh/prod_key
-          ssh-keyscan -H ${{ secrets.PROD_EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.PROD_FRONTEND_HOST }} >> ~/.ssh/known_hosts
       
       - name: Copy deployment files to prod EC2
         run: |
           scp -i ~/.ssh/prod_key \
             aws_serving/docker-compose.prod.yml \
-            ${{ secrets.PROD_EC2_USER }}@${{ secrets.PROD_EC2_HOST }}:~/docker-compose.yml
+            ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }}:~/docker-compose.yml
       
       - name: Deploy to production
         run: |
-          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_EC2_USER }}@${{ secrets.PROD_EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }} << 'EOF'
             echo "🚀 Deploying to PRODUCTION..."
             
             # Pull :prod images
@@ -504,7 +504,7 @@ jobs:
             # Blue-green deployment: Start new containers before stopping old
             export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
             export DATABASE_SSL="require"
-            export BACKEND_HOST="{{ secrets.PROD_BACKEND_HOST }}"
+            export BACKEND_HOST="${{ secrets.PROD_BACKEND_HOST }}"
             export BACKEND_PORT="5000"
             
             docker-compose up -d --no-deps --build
@@ -523,7 +523,7 @@ jobs:
         run: |
           echo "🏥 Final health check..."
           response=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.PROD_EC2_HOST }}/api/health)
+            http://${{ secrets.PROD_FRONTEND_HOST }}/api/health)
           
           if [ "$response" -eq 200 ]; then
             echo "✅ Production is healthy!"
@@ -539,9 +539,9 @@ jobs:
           echo "║  🎉 PRODUCTION DEPLOYMENT SUCCESSFUL!              ║"
           echo "╠════════════════════════════════════════════════════╣"
           echo "║  🌐 Production URL:                                ║"
-          echo "║     http://${{ secrets.PROD_EC2_HOST }}            ║"
+          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}            ║"
           echo "║  📊 Dashboard:                                     ║"
-          echo "║     http://${{ secrets.PROD_EC2_HOST }}/dashboard  ║"
+          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}/dashboard  ║"
           echo "║  🐳 Docker Images:                                 ║"
           echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod"
           echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod"

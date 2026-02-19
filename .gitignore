@@ -11,3 +11,4 @@ serving/.env.production
 /models/
 
 mlartifacts/
+aws_serving/app/artifacts/
