@@ -274,7 +274,6 @@ jobs:
     needs: push-dockerhub
     environment:
       name: test
-      url: http://${{ secrets.TEST_FRONTEND_HOST }}
     
     steps:
       - name: Checkout code
@@ -473,7 +472,6 @@ jobs:
     needs: tag-production
     environment:
       name: production
-      url: http://${{ secrets.PROD_FRONTEND_HOST }}
     
     steps:
       - name: Checkout code
