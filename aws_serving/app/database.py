@@ -36,7 +36,6 @@ Base = declarative_base()
 class Prediction(Base):
     """Model for storing prediction logs"""
     __tablename__ = "predictions"
-    
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     input_text = Column(Text, nullable=False)
@@ -47,7 +46,7 @@ class Prediction(Base):
     response_time_ms = Column(Integer)
     user_ip = Column(String(50))
     session_id = Column(String(100))
-    
+
     def __repr__(self):
         return f"<Prediction(id={self.id}, prediction={self.prediction}, confidence={self.confidence})>"
 

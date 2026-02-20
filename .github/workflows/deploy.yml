@@ -202,23 +202,22 @@ jobs:
       
       - name: Install test dependencies
         run: |
-          pip install -r aws_serving/app/requirements.txt
+          pip install -r serving/requirements.txt
           pip install pytest pytest-cov pytest-mock
-      
+
       - name: Run pytest
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
           DATABASE_SSL: disable
         run: |
           echo "🧪 Running unit tests with pytest..."
-          cd aws_serving/app
-          pytest ../../tests/ -v --cov=. --cov-report=term-missing
-      
+          pytest tests/ -v --cov=serving --cov-report=term-missing
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: aws_serving/app/.coverage
+          path: .coverage
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════

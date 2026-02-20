@@ -139,7 +139,7 @@ def health():
 @app.route("/predict", methods=["POST"])
 def predict():
     start_time = time.time()
-    
+
     if MODEL is None:
         return jsonify({"error": "Model not loaded"}), 503
 
@@ -174,13 +174,13 @@ def predict():
             ]
 
         response_time = int((time.time() - start_time) * 1000)
-        
+
         # Log to database
         try:
             db = get_db_session()
             for idx, text_input in enumerate(texts):
                 pred_data = predictions[idx]
-                
+
                 log_entry = Prediction(
                     input_text=text_input[:500],  # Truncate long texts
                     prediction=pred_data.get("label", str(pred_data)),
@@ -228,33 +228,33 @@ def monitoring_stats():
     try:
         from datetime import datetime, timedelta
         from sqlalchemy import func
-        
+
         db = get_db_session()
-        
+
         # Last 24 hours stats
         yesterday = datetime.utcnow() - timedelta(days=1)
-        
+
         total = db.query(func.count(Prediction.id)).filter(
             Prediction.timestamp >= yesterday
         ).scalar() or 0
-        
+
         avg_confidence = db.query(func.avg(Prediction.confidence)).filter(
             Prediction.timestamp >= yesterday
         ).scalar()
-        
+
         label_dist = db.query(
             Prediction.prediction,
             func.count(Prediction.id)
         ).filter(
             Prediction.timestamp >= yesterday
         ).group_by(Prediction.prediction).all()
-        
+
         avg_response_time = db.query(func.avg(Prediction.response_time_ms)).filter(
             Prediction.timestamp >= yesterday
         ).scalar()
-        
+
         db.close()
-        
+
         return jsonify({
             "period": "last_24h",
             "total_predictions": total,
@@ -273,42 +273,42 @@ def check_drift():
     try:
         from datetime import datetime, timedelta
         from sqlalchemy import func
-        
+
         db = get_db_session()
         now = datetime.utcnow()
-        
+
         # Compare this week vs last week
         this_week = now - timedelta(days=7)
         last_week = now - timedelta(days=14)
-        
+
         this_week_conf = db.query(func.avg(Prediction.confidence)).filter(
             Prediction.timestamp >= this_week
         ).scalar()
-        
+
         last_week_conf = db.query(func.avg(Prediction.confidence)).filter(
             Prediction.timestamp >= last_week,
             Prediction.timestamp < this_week
         ).scalar()
-        
+
         this_week_count = db.query(func.count(Prediction.id)).filter(
             Prediction.timestamp >= this_week
         ).scalar() or 0
-        
+
         last_week_count = db.query(func.count(Prediction.id)).filter(
             Prediction.timestamp >= last_week,
             Prediction.timestamp < this_week
         ).scalar() or 0
-        
+
         db.close()
-        
+
         drift_detected = False
         confidence_change_pct = 0.0
-        
+
         if this_week_conf and last_week_conf:
             confidence_change_pct = ((this_week_conf - last_week_conf) / last_week_conf) * 100
             # Alert if confidence drops by more than 10%
             drift_detected = confidence_change_pct < -10
-        
+
         return jsonify({
             "drift_detected": drift_detected,
             "this_week_avg_confidence": round(float(this_week_conf or 0), 4),
@@ -316,7 +316,10 @@ def check_drift():
             "confidence_change_pct": round(confidence_change_pct, 2),
             "this_week_predictions": this_week_count,
             "last_week_predictions": last_week_count,
-            "message": "⚠️ Confidence drop detected - possible drift" if drift_detected else "✅ No significant drift detected"
+            "message": (
+                "⚠️ Confidence drop detected - possible drift"
+                if drift_detected else "✅ No significant drift detected"
+            )
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -336,26 +339,26 @@ def dashboard_stats():
     """Get overall statistics for dashboard"""
     try:
         from sqlalchemy import func
-        
+
         db = get_db_session()
-        
+
         # Total predictions
         total_predictions = db.query(func.count(Prediction.id)).scalar() or 0
-        
+
         # Last 24 hours
         yesterday = datetime.utcnow() - timedelta(days=1)
         recent_24h = db.query(func.count(Prediction.id)).filter(
             Prediction.timestamp >= yesterday
         ).scalar() or 0
-        
+
         # Average confidence (all time)
         avg_confidence = db.query(func.avg(Prediction.confidence)).scalar() or 0
-        
+
         # Average response time (all time)
         avg_response_time_ms = db.query(func.avg(Prediction.response_time_ms)).scalar() or 0
-        
+
         db.close()
-        
+
         return jsonify({
             "total_predictions": total_predictions,
             "recent_24h": recent_24h,
@@ -363,7 +366,10 @@ def dashboard_stats():
             "avg_response_time_ms": int(avg_response_time_ms)
         })
     except Exception as e:
-        return jsonify({"error": str(e), "total_predictions": 0, "recent_24h": 0, "avg_confidence": 0, "avg_response_time_ms": 0}), 200
+        return jsonify({
+            "error": str(e), "total_predictions": 0, "recent_24h": 0,
+            "avg_confidence": 0, "avg_response_time_ms": 0
+        }), 200
 
 
 @app.route("/dashboard/confidence_histogram")
@@ -373,11 +379,11 @@ def confidence_histogram():
         db = get_db_session()
         predictions = db.query(Prediction.prediction, Prediction.confidence).all()
         db.close()
-        
+
         df = pd.DataFrame(predictions, columns=['prediction', 'confidence'])
         if df.empty:
             return jsonify({})
-        
+
         fig = px.histogram(
             df, x='confidence', color='prediction', nbins=50,
             title='Confidence Score Distribution by Label',
@@ -385,7 +391,7 @@ def confidence_histogram():
             barmode='overlay', opacity=0.7
         )
         fig.update_layout(xaxis_title="Confidence Score", yaxis_title="Count", template="plotly_white")
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -398,24 +404,24 @@ def confidence_ranges():
         db = get_db_session()
         predictions = db.query(Prediction.prediction, Prediction.confidence).all()
         db.close()
-        
+
         if not predictions:
             return jsonify({})
-        
+
         # Create confidence range bins (0-10, 10-20, etc.)
         ranges = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%', '50-60%', '60-70%', '70-80%', '80-90%', '90-100%']
         data = {label: [0] * 10 for label in ['positive', 'negative', 'neutral']}
-        
+
         for pred, conf in predictions:
             # Convert confidence (0-1) to bin index (0-9)
             bin_idx = min(int(conf * 10), 9)
             if pred.lower() in data:
                 data[pred.lower()][bin_idx] += 1
-        
+
         # Create bar chart with grouped bars for each label
         fig = go.Figure()
         colors = {'positive': '#10b981', 'negative': '#ef4444', 'neutral': '#a78bfa'}
-        
+
         for label in ['positive', 'negative', 'neutral']:
             fig.add_trace(go.Bar(
                 name=label.title(),
@@ -423,7 +429,7 @@ def confidence_ranges():
                 y=data[label],
                 marker_color=colors[label]
             ))
-        
+
         fig.update_layout(
             title='Predictions by Confidence Range (0-100%)',
             xaxis_title='Confidence Range',
@@ -431,7 +437,7 @@ def confidence_ranges():
             barmode='group',
             template="plotly_white"
         )
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -443,16 +449,18 @@ def label_distribution():
     try:
         from sqlalchemy import func
         db = get_db_session()
-        labels = db.query(Prediction.prediction, func.count(Prediction.id).label('count')).group_by(Prediction.prediction).all()
+        labels = db.query(
+            Prediction.prediction, func.count(Prediction.id).label('count')
+        ).group_by(Prediction.prediction).all()
         db.close()
-        
+
         df = pd.DataFrame(labels, columns=['prediction', 'count'])
         if df.empty:
             return jsonify({})
-        
+
         fig = px.pie(df, values='count', names='prediction', title='Label Distribution')
         fig.update_layout(template="plotly_white")
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -465,14 +473,14 @@ def confidence_by_label():
         db = get_db_session()
         predictions = db.query(Prediction.prediction, Prediction.confidence).all()
         db.close()
-        
+
         df = pd.DataFrame(predictions, columns=['prediction', 'confidence'])
         if df.empty:
             return jsonify({})
-        
+
         fig = px.box(df, x='prediction', y='confidence', title='Confidence Distribution by Label')
         fig.update_layout(template="plotly_white")
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -484,25 +492,25 @@ def predictions_over_time():
     try:
         from sqlalchemy import func
         db = get_db_session()
-        
+
         # Get last 7 days of data grouped by day
         daily_counts = db.query(
             func.date_trunc('day', Prediction.timestamp).label('date'),
             Prediction.prediction,
             func.count(Prediction.id).label('count')
         ).group_by('date', Prediction.prediction).order_by('date').all()
-        
+
         db.close()
-        
+
         if not daily_counts:
             return jsonify({})
-        
+
         df = pd.DataFrame(daily_counts, columns=['date', 'prediction', 'count'])
-        
+
         # Create line chart with clear colors
         fig = go.Figure()
         colors = {'positive': '#10b981', 'negative': '#ef4444', 'neutral': '#a78bfa'}
-        
+
         for label in ['positive', 'negative', 'neutral']:
             label_data = df[df['prediction'] == label]
             if not label_data.empty:
@@ -514,7 +522,7 @@ def predictions_over_time():
                     line=dict(color=colors[label], width=3),
                     marker=dict(size=8)
                 ))
-        
+
         fig.update_layout(
             title='Daily Predictions Count',
             xaxis_title='Date',
@@ -523,7 +531,7 @@ def predictions_over_time():
             hovermode='x unified',
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -535,23 +543,28 @@ def drift_timeline():
     try:
         from sqlalchemy import func
         db = get_db_session()
-        
+
         daily_conf = db.query(
             func.date_trunc('day', Prediction.timestamp).label('day'),
             func.avg(Prediction.confidence).label('avg_confidence')
         ).group_by('day').order_by('day').all()
-        
+
         db.close()
-        
+
         df = pd.DataFrame(daily_conf, columns=['day', 'avg_confidence'])
         if df.empty:
             return jsonify({})
-        
+
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df['day'], y=df['avg_confidence'], mode='lines+markers', name='Average Confidence'))
         fig.add_hline(y=0.8, line_dash="dash", line_color="red", annotation_text="Drift Alert Threshold")
-        fig.update_layout(title='Confidence Drift Over Time', xaxis_title='Date', yaxis_title='Average Confidence', template="plotly_white")
-        
+        fig.update_layout(
+            title='Confidence Drift Over Time',
+            xaxis_title='Date',
+            yaxis_title='Average Confidence',
+            template="plotly_white"
+        )
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -564,7 +577,7 @@ def model_metrics_comparison():
         # Load baseline metrics from artifacts
         artifacts_dir = os.path.join(os.path.dirname(__file__), "artifacts")
         comparison = []
-        
+
         for filename in ['distilbert_info.json', 'svm_model_info.json', 'svm_baseline_info.json']:
             filepath = os.path.join(artifacts_dir, filename)
             if os.path.exists(filepath):
@@ -579,21 +592,21 @@ def model_metrics_comparison():
                             'precision': metrics.get('precision', 0),
                             'recall': metrics.get('recall', 0)
                         })
-                except:
+                except Exception:
                     continue
-        
+
         if not comparison:
             return jsonify({"error": "No metrics data found"}), 200
-        
+
         # Add current model live performance estimate
         db = get_db_session()
         recent = datetime.utcnow() - timedelta(days=7)
         predictions = db.query(Prediction.confidence).filter(Prediction.timestamp >= recent).all()
         db.close()
-        
+
         confidences = [p[0] for p in predictions]
         current_avg = sum(confidences) / len(confidences) if confidences else 0
-        
+
         if current_avg > 0:
             comparison.append({
                 'model': 'Current (Live)',
@@ -602,22 +615,22 @@ def model_metrics_comparison():
                 'precision': current_avg * 0.97,
                 'recall': current_avg * 0.93
             })
-        
+
         df = pd.DataFrame(comparison)
-        
+
         fig = go.Figure()
         for metric in ['accuracy', 'f1_score', 'precision', 'recall']:
             fig.add_trace(go.Bar(name=metric.replace('_', ' ').title(), x=df['model'], y=df[metric]))
-        
+
         fig.update_layout(
-            title='Model Metrics Comparison', 
-            barmode='group', 
-            yaxis_title='Score', 
-            xaxis_title='Model', 
+            title='Model Metrics Comparison',
+            barmode='group',
+            yaxis_title='Score',
+            xaxis_title='Model',
             template="plotly_white",
             yaxis=dict(range=[0, 1])
         )
-        
+
         return jsonify(json.loads(fig.to_json(engine="json")))
     except Exception as e:
         return jsonify({"error": str(e)}), 200
@@ -630,20 +643,20 @@ def download_csv():
         from datetime import datetime as dt
         db = get_db_session()
         predictions = db.query(Prediction).all()
-        
+
         data = [{
             'id': p.id, 'timestamp': p.timestamp.isoformat(), 'input_text': p.input_text,
             'prediction': p.prediction, 'confidence': p.confidence, 'model_type': p.model_type,
             'model_version': p.model_version, 'response_time_ms': p.response_time_ms
         } for p in predictions]
-        
+
         db.close()
-        
+
         df = pd.DataFrame(data)
         filename = f'predictions_{dt.utcnow().strftime("%Y%m%d_%H%M%S")}.csv'
         filepath = f'/tmp/{filename}'
         df.to_csv(filepath, index=False)
-        
+
         return send_file(filepath, mimetype='text/csv', as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -655,32 +668,32 @@ def download_filtered():
     try:
         from datetime import datetime as dt, timedelta
         db = get_db_session()
-        
+
         days = int(request.args.get('days', 7))
         label = request.args.get('label', None)
-        
+
         query = db.query(Prediction)
         start_date = datetime.utcnow() - timedelta(days=days)
         query = query.filter(Prediction.timestamp >= start_date)
-        
+
         if label and label != 'all':
             query = query.filter(Prediction.prediction == label)
-        
+
         predictions = query.all()
-        
+
         data = [{
             'id': p.id, 'timestamp': p.timestamp.isoformat(), 'input_text': p.input_text,
             'prediction': p.prediction, 'confidence': p.confidence, 'model_type': p.model_type,
             'model_version': p.model_version, 'response_time_ms': p.response_time_ms
         } for p in predictions]
-        
+
         db.close()
-        
+
         df = pd.DataFrame(data)
         filename = f'predictions_filtered_{dt.utcnow().strftime("%Y%m%d_%H%M%S")}.csv'
         filepath = f'/tmp/{filename}'
         df.to_csv(filepath, index=False)
-        
+
         return send_file(filepath, mimetype='text/csv', as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
