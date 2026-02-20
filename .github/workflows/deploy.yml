@@ -345,8 +345,9 @@ jobs:
           ssh -i ~/.ssh/test_key ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }} << 'EOF'
             echo "🚀 Deploying FRONTEND..."
 
-            # Stop existing frontend
-            docker compose -f docker-compose.frontend.yml down || true
+            # Stop ALL old containers (including leftover backend from previous deploys)
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
 
             # Clean up
             docker system prune -af --volumes || true
