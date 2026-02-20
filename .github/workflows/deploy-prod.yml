@@ -1,0 +1,166 @@
+name: MLOps Production Deployment
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+env:
+  DOCKER_REGISTRY: docker.io
+  DOCKERHUB_USERNAME: sairam030
+  BACKEND_IMAGE: sentiment-backend
+  FRONTEND_IMAGE: sentiment-frontend
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 1: Tag as Production
+  # ═══════════════════════════════════════════════════════════════
+  tag-production:
+    name: 🏷️  Tag as :prod
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull :test images
+        run: |
+          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
+          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test
+      
+      - name: Tag as :prod
+        run: |
+          docker tag \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
+          
+          docker tag \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
+      
+      - name: Push :prod tags
+        run: |
+          echo "📤 Pushing backend:prod..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
+          
+          echo "📤 Pushing frontend:prod..."
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
+          
+          echo "✅ Production images tagged and pushed"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 2: Deploy to Production EC2s
+  # ═══════════════════════════════════════════════════════════════
+  deploy-prod:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: tag-production
+    environment:
+      name: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH keys
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_EC2_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          ssh-keyscan -H ${{ secrets.PROD_FRONTEND_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy files and SSH key to frontend EC2
+        run: |
+          scp -i ~/.ssh/prod_key \
+            aws_serving/docker-compose.frontend.yml \
+            aws_serving/docker-compose.backend.yml \
+            ~/.ssh/prod_key \
+            ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }}:~/
+
+      - name: Deploy backend (via SSH jump through frontend)
+        run: |
+          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }} << 'EOF'
+            echo "🚀 Deploying BACKEND to ${{ secrets.PROD_BACKEND_HOST }}..."
+
+            # Setup key for backend SSH
+            chmod 600 ~/prod_key
+
+            # Add backend host to known_hosts
+            ssh-keyscan -H ${{ secrets.PROD_BACKEND_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+            # Copy backend compose file to backend EC2
+            scp -i ~/prod_key ~/docker-compose.backend.yml \
+              ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_BACKEND_HOST }}:~/docker-compose.yml
+
+            # Deploy on backend EC2
+            ssh -i ~/prod_key ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_BACKEND_HOST }} << 'INNER'
+              echo "📦 Backend EC2 deployment starting..."
+              docker compose down || true
+              docker system prune -af --volumes || true
+              df -h /
+              docker pull sairam030/sentiment-backend:prod
+              export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
+              docker compose up -d
+              echo "⏳ Waiting for model to load..."
+              sleep 30
+              echo "✅ Backend deployment complete"
+              docker ps
+            INNER
+
+            # Clean up SSH key from frontend
+            rm -f ~/prod_key
+          EOF
+
+      - name: Deploy frontend on frontend EC2
+        run: |
+          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }} << 'EOF'
+            echo "🚀 Deploying FRONTEND..."
+
+            # Stop ALL old containers (including leftover backend from previous deploys)
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+
+            # Clean up
+            docker system prune -af --volumes || true
+
+            # Pull frontend image
+            docker pull sairam030/sentiment-frontend:prod
+
+            # Start frontend (points to backend private IP)
+            export BACKEND_HOST="${{ secrets.PROD_BACKEND_HOST }}"
+            export BACKEND_PORT="5000"
+            docker compose -f docker-compose.frontend.yml up -d
+
+            echo "✅ Frontend deployment complete"
+            docker ps
+          EOF
+
+      - name: Production health check
+        run: |
+          echo "🏥 Final health check..."
+          sleep 30
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.PROD_FRONTEND_HOST }}/api/health)
+          
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Production is healthy!"
+          else
+            echo "⚠️  Production health check returned $response"
+            exit 1
+          fi
+      
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════╗"
+          echo "║  🎉 PRODUCTION DEPLOYMENT SUCCESSFUL!              ║"
+          echo "╠════════════════════════════════════════════════════╣"
+          echo "║  🌐 Production URL:                                ║"
+          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}            ║"
+          echo "║  📊 Dashboard:                                     ║"
+          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}/dashboard  ║"
+          echo "║  🐳 Docker Images:                                 ║"
+          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod"
+          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod"
+          echo "╚════════════════════════════════════════════════════╝"

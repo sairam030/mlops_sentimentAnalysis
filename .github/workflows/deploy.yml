@@ -185,61 +185,61 @@ jobs:
   # - Model loading is successful
   # - Database connections are valid
   # ═══════════════════════════════════════════════════════════════
-  # test:
-  #   name: 🧪 Run Unit Tests
-  #   runs-on: ubuntu-latest
-  #   needs: build
+  test:
+    name: 🧪 Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
     
-  #   services:
-  #     # Start PostgreSQL for testing database functionality
-  #     postgres:
-  #       image: postgres:15-alpine
-  #       env:
-  #         POSTGRES_DB: test_db
-  #         POSTGRES_USER: test_user
-  #         POSTGRES_PASSWORD: test_password
-  #       ports:
-  #         - 5432:5432
-  #       options: >-
-  #         --health-cmd pg_isready
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
+    services:
+      # Start PostgreSQL for testing database functionality
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
       
-  #     - name: Download model artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: model-artifacts
-  #         path: aws_serving/app/artifacts/
+      - name: Download model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+          path: aws_serving/app/artifacts/
       
-  #     - name: Install test dependencies
-  #       run: |
-  #         pip install -r serving/requirements.txt
-  #         pip install pytest pytest-cov pytest-mock
+      - name: Install test dependencies
+        run: |
+          pip install -r serving/requirements.txt
+          pip install pytest pytest-cov pytest-mock
 
-  #     - name: Run pytest
-  #       env:
-  #         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-  #         DATABASE_SSL: disable
-  #       run: |
-  #         echo "🧪 Running unit tests with pytest..."
-  #         pytest tests/ -v --cov=serving --cov-report=term-missing
+      - name: Run pytest
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_SSL: disable
+        run: |
+          echo "🧪 Running unit tests with pytest..."
+          pytest tests/ -v --cov=serving --cov-report=term-missing
 
-  #     - name: Upload coverage report
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: coverage-report
-  #         path: .coverage
-  #         retention-days: 7
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .coverage
+          retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════
   # STAGE 5: Push to Docker Hub
@@ -250,7 +250,7 @@ jobs:
   push-dockerhub:
     name: 📤 Push to Docker Hub (:test)
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [lint,test]
     
     steps:
       - name: Download Docker images
@@ -452,162 +452,3 @@ jobs:
           echo "  🌐 Test environment: http://${{ secrets.TEST_FRONTEND_HOST }}"
           echo "  📊 Dashboard: http://${{ secrets.TEST_FRONTEND_HOST }}/dashboard"
           echo "═══════════════════════════════════════════════"
-
-  # ═══════════════════════════════════════════════════════════════
-  # STAGE 8: Manual Approval Gate
-  # ═══════════════════════════════════════════════════════════════
-  # IMPORTANT: This job requires manual approval in GitHub UI.
-  # 
-  # To set up:
-  # 1. Go to: Settings → Environments → New environment
-  # 2. Name: "production"
-  # 3. Enable "Required reviewers" and add yourself
-  # 4. Save protection rules
-  # 
-  # When pipeline reaches this stage, you'll get a notification
-  # to review and approve the production deployment.
-  # ═══════════════════════════════════════════════════════════════
-  approve-prod:
-    name: ⏸️  Manual Approval Required
-    runs-on: ubuntu-latest
-    needs: smoke-test
-    environment:
-      name: production-approval
-    
-    steps:
-      - name: Waiting for approval
-        run: |
-          echo "⏸️  Waiting for manual approval to deploy to PRODUCTION..."
-          echo ""
-          echo "Review test environment at: http://${{ secrets.TEST_FRONTEND_HOST }}"
-          echo "Dashboard: http://${{ secrets.TEST_FRONTEND_HOST }}/dashboard"
-          echo ""
-          echo "If everything looks good, approve this deployment."
-
-  # ═══════════════════════════════════════════════════════════════
-  # STAGE 9: Tag as Production
-  # ═══════════════════════════════════════════════════════════════
-  # After approval, retag :test images as :prod in Docker Hub.
-  # This creates a stable production tag while keeping test tag.
-  # ═══════════════════════════════════════════════════════════════
-  tag-production:
-    name: 🏷️  Tag as :prod
-    runs-on: ubuntu-latest
-    needs: approve-prod
-    
-    steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Pull :test images
-        run: |
-          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
-          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test
-      
-      - name: Tag as :prod
-        run: |
-          docker tag \
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test \
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
-          
-          docker tag \
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:test \
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
-      
-      - name: Push :prod tags
-        run: |
-          echo "📤 Pushing backend:prod..."
-          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
-          
-          echo "📤 Pushing frontend:prod..."
-          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
-          
-          echo "✅ Production images tagged and pushed"
-
-  # ═══════════════════════════════════════════════════════════════
-  # STAGE 10: Deploy to Production
-  # ═══════════════════════════════════════════════════════════════
-  # Final stage: Deploy :prod images to production EC2.
-  # Uses blue-green deployment strategy to minimize downtime.
-  # ═══════════════════════════════════════════════════════════════
-  deploy-prod:
-    name: 🚀 Deploy to Production
-    runs-on: ubuntu-latest
-    needs: tag-production
-    environment:
-      name: production
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_EC2_SSH_KEY }}" > ~/.ssh/prod_key
-          chmod 600 ~/.ssh/prod_key
-          ssh-keyscan -H ${{ secrets.PROD_FRONTEND_HOST }} >> ~/.ssh/known_hosts
-      
-      - name: Copy deployment files to prod EC2
-        run: |
-          scp -i ~/.ssh/prod_key \
-            aws_serving/docker-compose.prod.yml \
-            ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }}:~/docker-compose.yml
-      
-      - name: Deploy to production
-        run: |
-          ssh -i ~/.ssh/prod_key ${{ secrets.PROD_FRONTEND_USER }}@${{ secrets.PROD_FRONTEND_HOST }} << 'EOF'
-            echo "🚀 Deploying to PRODUCTION..."
-            
-            # Pull :prod images
-            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod
-            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod
-            
-            # Blue-green deployment: Start new containers before stopping old
-            export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
-            export DATABASE_SSL="require"
-            export BACKEND_HOST="${{ secrets.PROD_BACKEND_HOST }}"
-            export BACKEND_PORT="5000"
-            
-            docker compose up -d --no-deps --build
-            
-            # Wait for health check
-            sleep 10
-            
-            # Remove old containers
-            docker compose down --remove-orphans || true
-            
-            echo "✅ Production deployment complete"
-            docker ps
-          EOF
-      
-      - name: Production health check
-        run: |
-          echo "🏥 Final health check..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.PROD_FRONTEND_HOST }}/api/health)
-          
-          if [ "$response" -eq 200 ]; then
-            echo "✅ Production is healthy!"
-          else
-            echo "⚠️  Production health check returned $response"
-            exit 1
-          fi
-      
-      - name: Deployment summary
-        run: |
-          echo ""
-          echo "╔════════════════════════════════════════════════════╗"
-          echo "║  🎉 PRODUCTION DEPLOYMENT SUCCESSFUL!              ║"
-          echo "╠════════════════════════════════════════════════════╣"
-          echo "║  🌐 Production URL:                                ║"
-          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}            ║"
-          echo "║  📊 Dashboard:                                     ║"
-          echo "║     http://${{ secrets.PROD_FRONTEND_HOST }}/dashboard  ║"
-          echo "║  🐳 Docker Images:                                 ║"
-          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:prod"
-          echo "║     ${{ env.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:prod"
-          echo "╚════════════════════════════════════════════════════╝"
