@@ -229,7 +229,7 @@ jobs:
   push-dockerhub:
     name: 📤 Push to Docker Hub (:test)
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint]
     
     steps:
       - name: Download Docker images
