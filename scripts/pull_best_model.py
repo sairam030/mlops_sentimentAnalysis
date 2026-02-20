@@ -125,8 +125,14 @@ def main():
         if os.path.exists(best_model_src):
             shutil.copytree(best_model_src, best_model_dst)
             print(f"  ✅ Copied best_model/ to {best_model_dst}")
+        elif os.path.exists(os.path.join(local_dir, "MLmodel")):
+            # MLflow puts model files at root level (no best_model/ wrapper)
+            print(f"  📦 MLmodel found at root — copying entire download as best_model/")
+            shutil.copytree(local_dir, best_model_dst)
+            print(f"  ✅ Copied model files to {best_model_dst}")
         else:
-            print(f"  ⚠️  best_model/ directory not found in artifacts")
+            print(f"  ⚠️  No model files found in {local_dir}")
+            print(f"  📂 Contents: {os.listdir(local_dir)}")
 
         # Copy comparison artifacts (model_infos/)
         model_infos_src = os.path.join(local_dir, "model_infos")

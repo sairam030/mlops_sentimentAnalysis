@@ -85,12 +85,18 @@ jobs:
 
       - name: Verify model artifacts
         run: |
-          echo "📦 Model artifacts:"
-          ls -la aws_serving/app/artifacts/best_model/
-          echo "📄 MLmodel file content (first 5 lines):"
-          head -5 aws_serving/app/artifacts/best_model/MLmodel
-          echo "📏 MLmodel file size:"
-          wc -c aws_serving/app/artifacts/best_model/MLmodel
+          echo "📦 Full artifact tree:"
+          find aws_serving/app/artifacts/ -type f | head -30
+          echo ""
+          if [ -f aws_serving/app/artifacts/best_model/MLmodel ]; then
+            echo "✅ MLmodel found ($(wc -c < aws_serving/app/artifacts/best_model/MLmodel) bytes)"
+            head -5 aws_serving/app/artifacts/best_model/MLmodel
+          else
+            echo "❌ MLmodel NOT found at aws_serving/app/artifacts/best_model/MLmodel"
+            echo "📂 Top-level contents:"
+            ls -la aws_serving/app/artifacts/
+            exit 1
+          fi
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
