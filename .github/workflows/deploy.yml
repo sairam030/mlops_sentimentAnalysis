@@ -70,12 +70,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Remove LFS pointer artifacts
+        run: |
+          echo "🗑️ Removing Git LFS pointer files before downloading real artifacts..."
+          rm -rf aws_serving/app/artifacts/
+          mkdir -p aws_serving/app/artifacts/
+
       - name: Download model artifacts
         uses: actions/download-artifact@v4
         with:
           name: model-artifacts
           path: aws_serving/app/artifacts/
+
+      - name: Verify model artifacts
+        run: |
+          echo "📦 Model artifacts:"
+          ls -la aws_serving/app/artifacts/best_model/
+          echo "📄 MLmodel file content (first 5 lines):"
+          head -5 aws_serving/app/artifacts/best_model/MLmodel
+          echo "📏 MLmodel file size:"
+          wc -c aws_serving/app/artifacts/best_model/MLmodel
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
