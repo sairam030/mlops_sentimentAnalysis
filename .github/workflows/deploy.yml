@@ -298,48 +298,47 @@ jobs:
           chmod 600 ~/.ssh/test_key
           ssh-keyscan -H ${{ secrets.TEST_FRONTEND_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Copy files to frontend EC2
+      - name: Copy files and SSH key to frontend EC2
         run: |
           scp -i ~/.ssh/test_key \
             aws_serving/docker-compose.frontend.yml \
             aws_serving/docker-compose.backend.yml \
+            ~/.ssh/test_key \
             ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }}:~/
 
       - name: Deploy backend (via SSH jump through frontend)
         run: |
-          ssh -i ~/.ssh/test_key ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }} << 'OUTER_EOF'
+          ssh -i ~/.ssh/test_key ${{ secrets.TEST_FRONTEND_USER }}@${{ secrets.TEST_FRONTEND_HOST }} << 'EOF'
             echo "🚀 Deploying BACKEND to ${{ secrets.TEST_BACKEND_HOST }}..."
 
+            # Setup key for backend SSH
+            chmod 600 ~/test_key
+
+            # Add backend host to known_hosts
+            ssh-keyscan -H ${{ secrets.TEST_BACKEND_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
             # Copy backend compose file to backend EC2
-            scp ~/docker-compose.backend.yml \
+            scp -i ~/test_key ~/docker-compose.backend.yml \
               ${{ secrets.TEST_BACKEND_USER }}@${{ secrets.TEST_BACKEND_HOST }}:~/docker-compose.yml
 
             # Deploy on backend EC2
-            ssh ${{ secrets.TEST_BACKEND_USER }}@${{ secrets.TEST_BACKEND_HOST }} << 'INNER_EOF'
+            ssh -i ~/test_key ${{ secrets.TEST_BACKEND_USER }}@${{ secrets.TEST_BACKEND_HOST }} << 'INNER'
               echo "📦 Backend EC2 deployment starting..."
-
-              # Stop existing containers
               docker compose down || true
-
-              # Clean up old images to free disk space
               docker system prune -af --volumes || true
               df -h /
-
-              # Pull backend image
               docker pull sairam030/sentiment-backend:test
-
-              # Start backend
               export DATABASE_URL="${{ secrets.RDS_DATABASE_URL }}"
               docker compose up -d
-
-              # Wait for model to load
               echo "⏳ Waiting for model to load..."
               sleep 30
-
               echo "✅ Backend deployment complete"
               docker ps
-            INNER_EOF
-          OUTER_EOF
+            INNER
+
+            # Clean up SSH key from frontend
+            rm -f ~/test_key
+          EOF
 
       - name: Deploy frontend on frontend EC2
         run: |
