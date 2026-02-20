@@ -10,10 +10,12 @@ services:
     ports:
       - "5000:5000"
     environment:
-      # Your actual RDS endpoint
-      - DATABASE_URL=postgresql://sentiment_user:YOUR_PASSWORD@sentiment-db.cv2iq0sos7cc.ap-south-2.rds.amazonaws.com:5432/sentiment_db
+      # Database connection - set DATABASE_URL env var or it defaults below
+      # Example: export DATABASE_URL="postgresql://sentiment_user:your_password@sentiment-db.cv2iq0sos7cc.ap-south-2.rds.amazonaws.com:5432/sentiment_db"
+      - DATABASE_URL=${DATABASE_URL:-postgresql://sentiment_user:sentiment_pass@sentiment-db.cv2iq0sos7cc.ap-south-2.rds.amazonaws.com:5432/sentiment_db}
       - DATABASE_SSL_MODE=require
       - MODEL_VERSION=v1.0
+      - LOG_LEVEL=INFO
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 10s

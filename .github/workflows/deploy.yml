@@ -310,7 +310,7 @@ jobs:
             echo "🚀 Deploying to TEST environment..."
             
             # Stop existing containers
-            docker-compose down || true
+            docker compose down || true
             
             # Pull latest :test images
             docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:test
@@ -322,7 +322,7 @@ jobs:
             export BACKEND_HOST="10.0.132.177"
             export BACKEND_PORT="5000"
             
-            docker-compose up -d
+            docker compose up -d
             
             echo "✅ Test deployment complete"
             docker ps
@@ -517,13 +517,13 @@ jobs:
             export BACKEND_HOST="${{ secrets.PROD_BACKEND_HOST }}"
             export BACKEND_PORT="5000"
             
-            docker-compose up -d --no-deps --build
+            docker compose up -d --no-deps --build
             
             # Wait for health check
             sleep 10
             
             # Remove old containers
-            docker-compose down --remove-orphans || true
+            docker compose down --remove-orphans || true
             
             echo "✅ Production deployment complete"
             docker ps
