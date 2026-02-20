@@ -40,15 +40,33 @@ def detect_model_type():
     mlmodel_path = os.path.join(MODEL_DIR, "MLmodel")
     if not os.path.exists(mlmodel_path):
         raise FileNotFoundError(f"MLmodel not found at {mlmodel_path}")
+
     with open(mlmodel_path) as f:
-        mlmodel = yaml.safe_load(f)
-    flavors = mlmodel.get("flavors", {})
-    if "transformers" in flavors:
+        raw_content = f.read()
+    print(f"[app] MLmodel file ({len(raw_content)} bytes): {mlmodel_path}")
+    print(f"[app] MLmodel first 200 chars: {raw_content[:200]}")
+
+    mlmodel = yaml.safe_load(raw_content)
+    print(f"[app] yaml.safe_load returned type: {type(mlmodel)}")
+
+    # If yaml returned a dict, use structured detection
+    if isinstance(mlmodel, dict):
+        flavors = mlmodel.get("flavors", {})
+        if "transformers" in flavors:
+            return "transformers"
+        elif "sklearn" in flavors:
+            return "sklearn"
+        else:
+            raise ValueError(f"Unknown model flavor: {list(flavors.keys())}")
+
+    # Fallback: text-based detection if yaml didn't parse as dict
+    print("[app] ⚠️ MLmodel didn't parse as dict, falling back to text detection")
+    if "transformers" in raw_content:
         return "transformers"
-    elif "sklearn" in flavors:
+    elif "sklearn" in raw_content:
         return "sklearn"
     else:
-        raise ValueError(f"Unknown model flavor: {list(flavors.keys())}")
+        raise ValueError(f"Cannot detect model type from MLmodel. Content: {raw_content[:300]}")
 
 
 def load_model():
