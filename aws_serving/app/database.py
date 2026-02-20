@@ -5,17 +5,15 @@ SQLAlchemy models and session management for prediction logging.
 """
 
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
 
 # Get database URL from environment variable
 # Format: postgresql://username:password@host:port/dbname
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://sentiment_user:sentiment_pass@localhost:5432/sentiment_db"
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://sentiment_user:sentiment_pass@localhost:5432/sentiment_db")
 
 # SSL mode for RDS connections
 SSL_MODE = os.getenv("DATABASE_SSL_MODE", "prefer")  # prefer, require, or disable
@@ -26,7 +24,7 @@ engine = create_engine(
     pool_pre_ping=True,  # Verify connections before using
     pool_size=5,
     max_overflow=10,
-    connect_args={"sslmode": SSL_MODE} if "rds.amazonaws.com" in DATABASE_URL else {}
+    connect_args={"sslmode": SSL_MODE} if "rds.amazonaws.com" in DATABASE_URL else {},
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -35,6 +33,7 @@ Base = declarative_base()
 
 class Prediction(Base):
     """Model for storing prediction logs"""
+
     __tablename__ = "predictions"
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)

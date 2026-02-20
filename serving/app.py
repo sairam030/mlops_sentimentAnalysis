@@ -10,7 +10,7 @@ Endpoints:
 
 import time
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -68,7 +68,7 @@ class Metrics:
         self.total_predictions: int = 0
         self.total_errors: int = 0
         self.total_latency_ms: float = 0.0
-        self.started_at: str = datetime.now(UTC).isoformat()
+        self.started_at: str = datetime.now(timezone.utc).isoformat()
 
     @property
     def avg_latency_ms(self) -> float:
@@ -199,7 +199,7 @@ async def health():
         model_version=status_info["model_version"],
         model_source=status_info["source"],
         model_info=status_info["model_info"],
-        timestamp=datetime.now(UTC).isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 
